@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope, Sparkles } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope, Sparkles, Lock } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
@@ -127,6 +127,7 @@ export default function Dashboard() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
 
   const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
+  const [userPlanTier, setUserPlanTier] = useState('basico') // 'basico' ou 'pro'
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
   const [isExpired, setIsExpired] = useState(false)
   
@@ -152,6 +153,16 @@ export default function Dashboard() {
   const phq9SelfHarmFlag = (phq9Answers[8] ?? 0) > 0
   const gad7AllAnswered = gad7Answers.every(a => a !== null)
   const gad7Score = gad7Answers.reduce((sum: number, v) => sum + (v ?? 0), 0)
+
+  // Função centralizada para bloquear interações do plano básico nas ferramentas de especialistas
+  const handleRestrictedAction = () => {
+    if (userPlanTier === 'basico') {
+      alert('🔒 Recurso exclusivo do Plano PRO. Faça o upgrade na aba "Planos e Assinatura" para interagir com as ferramentas de especialistas e emitir laudos com IA!')
+      setActiveTab('planos')
+      return true
+    }
+    return false
+  }
 
   useEffect(() => {
     let inactivityTimer: NodeJS.Timeout
@@ -200,11 +211,13 @@ export default function Dashboard() {
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
           if (profile) {
             setSubscriptionStatus(profile.subscription_status)
+            if (profile.plan_tier) setUserPlanTier(profile.plan_tier)
+            
             const trialEnd = new Date(profile.trial_ends_at).getTime()
             const now = new Date().getTime()
             const diffHours = Math.floor((trialEnd - now) / (1000 * 60 * 60))
             if (profile.subscription_status === 'active') {
-              setTimeLeftText('Plano PRO Ativo')
+              setTimeLeftText(`Plano ${profile.plan_tier === 'pro' ? 'PRO' : 'Básico'} Ativo`)
               setIsExpired(false)
             } else if (diffHours <= 0) {
               setIsExpired(true)
@@ -358,8 +371,8 @@ export default function Dashboard() {
 
   const handlePrint = () => window.print()
 
-  // Função para incluir dor no histórico mediante clique no botão
   const handleAddPainRecord = () => {
+    if (handleRestrictedAction()) return
     if (!selectedBodyPart || painLevel === null) {
       return alert('Selecione uma região anatômica no boneco e a intensidade da dor na escala EVA.')
     }
@@ -375,8 +388,9 @@ export default function Dashboard() {
     setPainLevel(null)
   }
 
-  // IA - Gerador automático de laudo
   const handleGenerateAIReport = () => {
+    if (handleRestrictedAction()) return
+
     setIsGeneratingAI(true)
     setTimeout(() => {
       let reportText = `LAUDO / RELATÓRIO CLÍNICO\nPaciente: ${patientName || 'Não informado'} | Data: ${prescriptionDate || new Date().toLocaleDateString()}\n\n`
@@ -409,7 +423,6 @@ export default function Dashboard() {
     }, 800)
   }
 
-  // Função handleSendEmail atualizada com autenticação segura via Bearer Token
   const handleSendEmail = async () => {
     if (!patientEmail) return alert('Por favor, informe o e-mail do paciente.')
     setIsSending(true)
@@ -618,7 +631,11 @@ export default function Dashboard() {
                   <FileText size={20} className={activeTab === 'prescricao' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Nova Prescrição</span>
                 </li>
                 <li onClick={() => setActiveTab('especialistas')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'especialistas' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
-                  <Stethoscope size={20} className={activeTab === 'especialistas' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Especialistas</span>
+                  <Stethoscope size={20} className={activeTab === 'especialistas' ? 'text-action-mint' : ''} /> 
+                  <span className="hidden md:flex items-center justify-between flex-1 font-bold">
+                    Especialistas 
+                    {userPlanTier === 'basico' && <span className="bg-yellow-100 text-yellow-700 text-[9px] px-1.5 py-0.5 rounded-full font-black flex items-center gap-0.5"><Lock size={10} /> PRO</span>}
+                  </span>
                 </li>
                 <li onClick={() => setActiveTab('receitas')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'receitas' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <Zap size={20} className={activeTab === 'receitas' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Receitas Prontas</span>
@@ -794,10 +811,28 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ABA ESPECIALISTAS */}
+            {/* ABA ESPECIALISTAS (VISUALIZAÇÃO LIVRE, INTERAÇÃO BLOQUEADA PARA BÁSICO) */}
             {activeTab === 'especialistas' && (
-              <div className="flex-1 bg-white rounded-3xl p-6 overflow-y-auto flex flex-col gap-6">
+              <div className="flex-1 bg-white rounded-3xl p-6 overflow-y-auto flex flex-col gap-6 relative">
                 
+                {/* BANNER DE UPGRADE CASO SEJA PLANO BÁSICO */}
+                {userPlanTier === 'basico' && (
+                  <div className="bg-gradient-to-r from-primary-blue to-[#2A416F] text-white p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-md shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-action-mint/20 flex items-center justify-center text-action-mint">
+                        <Lock size={22} />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-sm">Modo de Visualização — Plano Básico (Clínico Geral)</h4>
+                        <p className="text-xs text-gray-300">Você pode visualizar todas as perguntas, escalas e mapas. Para interagir e gerar laudos, faça o upgrade para o **Plano PRO**.</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setActiveTab('planos')} className="bg-action-mint text-primary-blue font-extrabold text-xs px-5 py-2.5 rounded-xl hover:bg-[#00c07d] transition-all shadow shrink-0">
+                      Fazer Upgrade para PRO
+                    </button>
+                  </div>
+                )}
+
                 {/* CABEÇALHO UNIVERSAL DE PACIENTE E DATA */}
                 <div className="bg-bg-ice p-4 rounded-2xl border border-gray-200 flex flex-col md:flex-row gap-4 shrink-0">
                   <div className="flex-1">
@@ -852,7 +887,14 @@ export default function Dashboard() {
                         </div>
                         <div className="flex gap-1 justify-between">
                           {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                            <button key={num} onClick={() => setPainLevel(num)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${painLevel === num ? 'bg-primary-blue text-white shadow-md scale-105' : 'bg-bg-ice text-gray-600 hover:bg-gray-200'}`}>
+                            <button 
+                              key={num} 
+                              onClick={() => {
+                                if (handleRestrictedAction()) return
+                                setPainLevel(num)
+                              }} 
+                              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${painLevel === num ? 'bg-primary-blue text-white shadow-md scale-105' : 'bg-bg-ice text-gray-600 hover:bg-gray-200'}`}
+                            >
                               {num}
                             </button>
                           ))}
@@ -864,7 +906,7 @@ export default function Dashboard() {
                         <div className="flex justify-between items-center mb-4">
                           <div>
                             <h4 className="font-bold text-sm text-primary-blue">Mapa Anatômico de Lesão</h4>
-                            <p className="text-xs text-gray-400">Clique na região afetada no boneco (a área selecionada ficará vermelha).</p>
+                            <p className="text-xs text-gray-400">Visualização de regiões anatômicas para marcação.</p>
                           </div>
                           <div className="flex gap-1 bg-bg-ice p-1 rounded-xl">
                             <button onClick={() => setBodySide('frente')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${bodySide === 'frente' ? 'bg-primary-blue text-white' : 'text-gray-600'}`}>Frente</button>
@@ -878,7 +920,10 @@ export default function Dashboard() {
                               {['Cabeça / Face', 'Ombro Direito', 'Ombro Esquerdo', 'Tórax / Abdome', 'Membro Superior D.', 'Membro Superior E.', 'Quadril / Bacia', 'Joelho Direito', 'Joelho Esquerdo', 'Tornozelo / Pé D.', 'Tornozelo / Pé E.'].map((part) => (
                                 <button
                                   key={part}
-                                  onClick={() => setSelectedBodyPart(part)}
+                                  onClick={() => {
+                                    if (handleRestrictedAction()) return
+                                    setSelectedBodyPart(part)
+                                  }}
                                   className={`p-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
                                     selectedBodyPart === part
                                       ? 'bg-red-600 text-white border-red-600 shadow-lg scale-105 animate-pulse'
@@ -892,10 +937,13 @@ export default function Dashboard() {
                             </div>
                           ) : (
                             <div className="w-full grid grid-cols-2 gap-3">
-                              {['Cabeça (Posterior)', 'Coluna Cervical', 'Coluna Dorsal', 'Coluna Lombar', 'Ombro Costas D.', 'Ombro Costas E.', 'Glúteo / Região Sacra', 'Coxa / Perna D.', 'Coxa / Perna E.', 'Calcanhar / Pé D.', 'Calcanhar / Pé E.'].map((part) => (
+                              {['Cabeça (Posterior)', 'Coluna Cervical', 'Coluna Dorsal', 'Coluna Lombar', 'Ombro Costas D.', 'Ombro Costas E.', 'Glúteo / Região Sacra', 'Coxa / Perna D.', 'Coxa / Perna E.', 'Calcanhar / Pé D.' , 'Calcanhar / Pé E.'].map((part) => (
                                 <button
                                   key={part}
-                                  onClick={() => setSelectedBodyPart(part)}
+                                  onClick={() => {
+                                    if (handleRestrictedAction()) return
+                                    setSelectedBodyPart(part)
+                                  }}
                                   className={`p-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
                                     selectedBodyPart === part
                                       ? 'bg-red-600 text-white border-red-600 shadow-lg scale-105 animate-pulse'
@@ -920,7 +968,7 @@ export default function Dashboard() {
                         )}
                       </div>
 
-                      {/* HISTÓRICO DE DOR REGISTRADO COM OPÇÃO DE APAGAR (X) */}
+                      {/* HISTÓRICO DE DOR REGISTRADO */}
                       <div className="bg-white p-5 rounded-2xl border border-gray-100 space-y-3">
                         <h4 className="font-bold text-sm text-primary-blue">Histórico de Queixas e Dor Registradas</h4>
                         {painHistory.length === 0 ? (
@@ -934,7 +982,7 @@ export default function Dashboard() {
                                   <span><strong>{item.part}</strong> ({item.side}) — Dor EVA: <strong className="text-red-600">{item.level}/10</strong></span>
                                   <span className="text-gray-400 text-[10px]">({item.timestamp})</span>
                                 </div>
-                                <button onClick={() => setPainHistory(painHistory.filter(h => h.id !== item.id))} className="text-gray-400 hover:text-red-600 p-1 rounded-lg hover:bg-white transition-colors" title="Apagar marcação por engano">
+                                <button onClick={() => setPainHistory(painHistory.filter(h => h.id !== item.id))} className="text-gray-400 hover:text-red-600 p-1 rounded-lg hover:bg-white transition-colors">
                                   <X size={16} />
                                 </button>
                               </li>
@@ -946,7 +994,8 @@ export default function Dashboard() {
                       {/* BOTÃO DE IA PARA GERAR LAUDO */}
                       <div className="pt-2">
                         <button onClick={handleGenerateAIReport} disabled={isGeneratingAI} className="w-full bg-action-mint text-primary-blue font-extrabold py-3.5 rounded-2xl shadow-md hover:bg-[#00c07d] transition-all flex items-center justify-center gap-2">
-                          <Sparkles size={18} /> {isGeneratingAI ? 'Gerando Laudo com IA...' : 'Gerar Laudo / Relatório Automático com IA'}
+                          {userPlanTier === 'basico' ? <Lock size={18} /> : <Sparkles size={18} />} 
+                          {isGeneratingAI ? 'Gerando Laudo com IA...' : userPlanTier === 'basico' ? 'Gerar Laudo com IA (Exclusivo PRO)' : 'Gerar Laudo / Relatório Automático com IA'}
                         </button>
                       </div>
 
@@ -980,6 +1029,7 @@ export default function Dashboard() {
                                   key={opt.value}
                                   type="button"
                                   onClick={() => {
+                                    if (handleRestrictedAction()) return
                                     const updated = [...phq9Answers]
                                     updated[qIdx] = opt.value
                                     setPhq9Answers(updated)
@@ -1024,6 +1074,7 @@ export default function Dashboard() {
                                   key={opt.value}
                                   type="button"
                                   onClick={() => {
+                                    if (handleRestrictedAction()) return
                                     const updated = [...gad7Answers]
                                     updated[qIdx] = opt.value
                                     setGad7Answers(updated)
@@ -1046,15 +1097,16 @@ export default function Dashboard() {
                     {/* BOTÃO DE IA PARA LAUDO PSIQUIÁTRICO */}
                     <div className="pt-2">
                       <button onClick={handleGenerateAIReport} disabled={isGeneratingAI} className="w-full bg-action-mint text-primary-blue font-extrabold py-3.5 rounded-2xl shadow-md hover:bg-[#00c07d] transition-all flex items-center justify-center gap-2">
-                        <Sparkles size={18} /> {isGeneratingAI ? 'Gerando Laudo com IA...' : 'Gerar Laudo / Relatório Automático com IA'}
+                        {userPlanTier === 'basico' ? <Lock size={18} /> : <Sparkles size={18} />} 
+                        {isGeneratingAI ? 'Gerando Laudo com IA...' : userPlanTier === 'basico' ? 'Gerar Laudo com IA (Exclusivo PRO)' : 'Gerar Laudo / Relatório Automático com IA'}
                       </button>
                     </div>
 
                   </div>
                 )}
 
-                {/* LAUDO GERADO PELA IA COM OPÇÃO DE EDIÇÃO E IMPRESSÃO */}
-                {generatedReport && (
+                {/* LAUDO GERADO PELA IA */}
+                {generatedReport && userPlanTier === 'pro' && (
                   <div className="bg-white border-2 border-action-mint rounded-3xl p-6 shadow-xl space-y-4">
                     <div className="flex justify-between items-center border-b pb-3">
                       <h4 className="font-extrabold text-primary-blue flex items-center gap-2">
@@ -1063,7 +1115,6 @@ export default function Dashboard() {
                       <button onClick={() => setGeneratedReport('')} className="text-gray-400 hover:text-red-600"><X size={18}/></button>
                     </div>
                     
-                    {/* Visualização de Impressão / Edição do Laudo */}
                     <div className="bg-bg-ice p-6 rounded-2xl border border-gray-200 space-y-4">
                       <div className="flex justify-between items-start border-b border-primary-blue/20 pb-4">
                         <Logo className="h-6" />
@@ -1076,7 +1127,6 @@ export default function Dashboard() {
                         <span>Paciente: <strong className="uppercase">{patientName || 'NÃO INFORMADO'}</strong></span>
                       </div>
                       
-                      {/* CAIXA DE TEXTO EDITÁVEL LIVREMENTE PELO ESPECIALISTA */}
                       <textarea
                         value={generatedReport}
                         onChange={(e) => setGeneratedReport(e.target.value)}
@@ -1099,14 +1149,14 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* OUTRAS ESPECIALIDADES (PEDIATRIA, CARDIOLOGIA, GINECOLOGIA) */}
+                {/* OUTRAS ESPECIALIDADES (VISUALIZAÇÃO) */}
                 {activeSpecialtyTool === 'pediatria' && (
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Ferramentas de Pediatria</h3>
                     <div className="grid md:grid-cols-3 gap-4">
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Peso da Criança (kg)</label><input type="number" placeholder="Ex: 12.5" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Idade</label><input type="text" placeholder="Ex: 2 anos" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Curva OMS</label><input type="text" placeholder="Percentil Peso/Altura" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Peso da Criança (kg)</label><input type="number" placeholder="Ex: 12.5" onClick={handleRestrictedAction} className="w-full border rounded-xl p-2 mt-1 text-sm outline-none cursor-pointer" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Idade</label><input type="text" placeholder="Ex: 2 anos" onClick={handleRestrictedAction} className="w-full border rounded-xl p-2 mt-1 text-sm outline-none cursor-pointer" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Curva OMS</label><input type="text" placeholder="Percentil Peso/Altura" onClick={handleRestrictedAction} className="w-full border rounded-xl p-2 mt-1 text-sm outline-none cursor-pointer" /></div>
                     </div>
                   </div>
                 )}
@@ -1115,8 +1165,8 @@ export default function Dashboard() {
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Cardiologia & Hemodinâmica</h3>
                     <div className="grid md:grid-cols-2 gap-4">
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Pressão Arterial Média</label><input type="text" placeholder="120/80 mmHg" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Escala de Risco (Framingham)</label><input type="text" placeholder="Calcular risco cardiovascular" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Pressão Arterial Média</label><input type="text" placeholder="120/80 mmHg" onClick={handleRestrictedAction} className="w-full border rounded-xl p-2 mt-1 text-sm outline-none cursor-pointer" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Escala de Risco (Framingham)</label><input type="text" placeholder="Calcular risco cardiovascular" onClick={handleRestrictedAction} className="w-full border rounded-xl p-2 mt-1 text-sm outline-none cursor-pointer" /></div>
                     </div>
                   </div>
                 )}
@@ -1125,9 +1175,9 @@ export default function Dashboard() {
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Ginecologia & Obstetrícia</h3>
                     <div className="grid md:grid-cols-3 gap-4">
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">DUM</label><input type="date" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Fórmula Obstétrica</label><input type="text" placeholder="G_ P_ A_" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Rastreio Preventivo</label><input type="text" placeholder="Papanicolau / Mamografia" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">DUM</label><input type="date" onClick={handleRestrictedAction} className="w-full border rounded-xl p-2 mt-1 text-sm outline-none cursor-pointer" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Fórmula Obstétrica</label><input type="text" placeholder="G_ P_ A_" onClick={handleRestrictedAction} className="w-full border rounded-xl p-2 mt-1 text-sm outline-none cursor-pointer" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Rastreio Preventivo</label><input type="text" placeholder="Papanicolau / Mamografia" onClick={handleRestrictedAction} className="w-full border rounded-xl p-2 mt-1 text-sm outline-none cursor-pointer" /></div>
                     </div>
                   </div>
                 )}
@@ -1181,22 +1231,72 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* ABA PLANOS E ASSINATURA */}
             {activeTab === 'planos' && (
-              <div className="flex-1 bg-white rounded-3xl p-8 overflow-y-auto text-center">
-                <h2 className="text-3xl font-black text-primary-blue mb-4">Escolha o seu plano de renovação</h2>
+              <div className="flex-1 bg-white rounded-3xl p-8 overflow-y-auto text-center space-y-8">
+                <div>
+                  <h2 className="text-3xl font-black text-primary-blue mb-2">Escolha o plano ideal para a sua prática médica</h2>
+                  <p className="text-gray-500 text-sm">Evolua seu consultório com prescrição inteligente e ferramentas especializadas.</p>
+                </div>
+
+                {/* PLANO BÁSICO (CLÍNICO GERAL) */}
+                <div className="max-w-4xl mx-auto border-2 border-dashed border-gray-200 p-6 rounded-3xl bg-bg-ice text-left flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div>
+                    <span className="bg-gray-200 text-gray-700 text-[10px] font-black uppercase px-2.5 py-1 rounded-full">Essencial</span>
+                    <h3 className="text-xl font-black text-primary-blue mt-2">Plano Básico (Clínico Geral)</h3>
+                    <p className="text-xs text-gray-500 mt-1">Ideal para médicos generalistas e plantonistas. Inclui prescrição rápida, busca inteligente de medicamentos, receitas prontas e envio por e-mail.</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-black text-primary-blue mb-2">R$ 47,90 <span className="text-xs font-normal text-gray-500">/mês</span></div>
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-BASICO" target="_blank" rel="noopener noreferrer" className="inline-block px-6 py-2.5 rounded-xl border-2 border-primary-blue font-bold text-primary-blue text-xs hover:bg-primary-blue hover:text-white transition-all">Assinar Básico</a>
+                  </div>
+                </div>
+
+                <div className="relative flex py-2 items-center max-w-4xl mx-auto">
+                  <div className="flex-grow border-t border-gray-200"></div>
+                  <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold uppercase tracking-wider">Ou acelere com o Especializado</span>
+                  <div className="flex-grow border-t border-gray-200"></div>
+                </div>
+
+                {/* PLANOS PRO (ESPECIALISTAS + IA) */}
                 <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto text-left">
-                  <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between">
-                    <div><h3 className="font-bold text-lg text-primary-blue mb-1">Plano Mensal</h3><div className="text-3xl font-black text-primary-blue mb-6">R$ 47,90</div></div>
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">Assinar Mensal</a>
+                  
+                  {/* PRO MENSAL */}
+                  <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-action-mint transition-all">
+                    <div>
+                      <span className="bg-primary-blue/10 text-primary-blue text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO MENSAL</span>
+                      <h3 className="font-bold text-lg text-primary-blue mt-3 mb-1">Mensal</h3>
+                      <div className="text-3xl font-black text-primary-blue mb-4">R$ 59,90</div>
+                      <p className="text-xs text-gray-500 mb-6">Acesso total às ferramentas de Ortopedia, Psiquiatria (PHQ-9/GAD-7), Pediatria, Cardiologia e Laudos com IA.</p>
+                    </div>
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Pro Mensal</a>
                   </div>
-                  <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between">
-                    <div><h3 className="font-bold text-lg mb-1">Plano Trimestral</h3><div className="text-3xl font-black text-action-mint mb-6">R$ 119,90</div></div>
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md">Assinar Trimestral</a>
+
+                  {/* PRO TRIMESTRAL (MAIS COMPRADO) */}
+                  <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between relative transform md:-translate-y-2 border-2 border-action-mint">
+                    <div className="absolute -top-3.5 right-6 bg-action-mint text-primary-blue font-extrabold text-[10px] uppercase px-3 py-1 rounded-full shadow-md tracking-wider">
+                      Mais Comprado ⭐
+                    </div>
+                    <div>
+                      <span className="bg-action-mint/20 text-action-mint text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO TRIMESTRAL</span>
+                      <h3 className="font-bold text-lg mt-3 mb-1">Trimestral</h3>
+                      <div className="text-3xl font-black text-action-mint mb-4">R$ 139,90</div>
+                      <p className="text-xs text-gray-300 mb-6">Economia inteligente para especialistas. Desbloqueio completo de todos os módulos clínicos por 3 meses.</p>
+                    </div>
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md text-sm">Assinar Pro Trimestral</a>
                   </div>
-                  <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between">
-                    <div><h3 className="font-bold text-lg text-primary-blue mb-1">Plano Anual</h3><div className="text-3xl font-black text-primary-blue mb-6">R$ 347,90</div></div>
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-ANUAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">Assinar Anual</a>
+
+                  {/* PRO ANUAL */}
+                  <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-action-mint transition-all">
+                    <div>
+                      <span className="bg-yellow-100 text-yellow-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO ANUAL (MELHOR VALOR)</span>
+                      <h3 className="font-bold text-lg text-primary-blue mt-3 mb-1">Anual</h3>
+                      <div className="text-3xl font-black text-primary-blue mb-4">R$ 387,90</div>
+                      <p className="text-xs text-gray-500 mb-6">Máximo desempenho médico com desconto anual garantido em todas as atualizações futuras.</p>
+                    </div>
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-ANUAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Pro Anual</a>
                   </div>
+
                 </div>
               </div>
             )}
@@ -1217,7 +1317,7 @@ export default function Dashboard() {
                      <input type="text" value={docName} onChange={(e) => setDocName(e.target.value.toUpperCase())} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none font-bold uppercase" />
                    </div>
                    <div className="grid grid-cols-2 gap-4">
-                     <div><label className="block text-sm font-bold text-gray-600 mb-2">CRM</label><input type="text" value={docCRM} onChange={(e) => setDocCRM(e.target.value)} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none" /></div>
+                     <div><label className="block text-sm font-bold text-gray-600 mb-2">CRM</label><input type="text" value={docCRM} onChange={(e) => setDocCRM(e.target.value)} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none" /><div></div></div>
                      <div><label className="block text-sm font-bold text-gray-600 mb-2">UF</label><select value={docUF} onChange={(e) => setDocUF(e.target.value)} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none">{['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => <option key={uf} value={uf}>{uf}</option>)}</select></div>
                    </div>
                    <div>
