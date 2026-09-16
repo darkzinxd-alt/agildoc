@@ -42,6 +42,21 @@ const RECEITAS_DB = [
       { name: 'Loratadina 10mg', dose: 'VO', freq: '24/24h (À noite)' },
       { name: 'Soro Fisiológico 0.9%', dose: 'Nasal', freq: 'Lavagem nasal 4x ao dia' }
     ]
+  },
+  {
+    id: 'r3', name: 'Conjuntivite', cid: 'H10', dias: '3',
+    items: [
+      { name: 'Tobramicina (Colírio)', dose: 'Ocular', freq: '1 gota em cada olho 6/6h (7 dias)' },
+      { name: 'Soro Fisiológico (Gelado)', dose: 'Local', freq: 'Compressas geladas 4x ao dia' }
+    ]
+  },
+  {
+    id: 'r4', name: 'Lombalgia Aguda', cid: 'M54', dias: '2',
+    items: [
+      { name: 'Diclofenaco de Sódio 50mg', dose: 'VO', freq: '8/8h (Após refeição)' },
+      { name: 'Ciclobenzaprina 5mg', dose: 'VO', freq: '24/24h (Ao deitar)' },
+      { name: 'Dipirona Sódica 1g', dose: 'VO', freq: '6/6h (Em caso de dor forte)' }
+    ]
   }
 ]
 
@@ -50,6 +65,50 @@ const KNOWN_INTERACTIONS = [
   { drugA: 'Ceftriaxona', drugB: 'Soro Fisiológico com Cálcio', msg: 'Risco de precipitação fatal de sais de cálcio.' },
   { drugA: 'Fluoxetina', drugB: 'Tramadol', msg: 'Risco severo de Síndrome Serotoninérgica.' }
 ]
+
+const PHQ9_QUESTIONS = [
+  'Pouco interesse ou prazer em fazer as coisas',
+  'Sentir-se para baixo, deprimido(a) ou sem esperança',
+  'Dificuldade para pegar no sono, continuar dormindo ou dormir demais',
+  'Sentir-se cansado(a) ou com pouca energia',
+  'Falta de apetite ou comer demais',
+  'Sentir-se mal consigo mesmo(a) — ou sentir que é um fracasso ou que decepcionou a si mesmo(a) ou a família',
+  'Dificuldade para se concentrar em tarefas, como ler ou assistir TV',
+  'Lentidão para se mover ou falar (perceptível a outras pessoas) — ou o oposto, estar tão agitado(a) que se movimenta muito mais que o habitual',
+  'Pensamentos de que seria melhor estar morto(a) ou de se machucar de alguma forma'
+]
+
+const GAD7_QUESTIONS = [
+  'Sentir-se nervoso(a), ansioso(a) ou muito tenso(a)',
+  'Não conseguir parar ou controlar as preocupações',
+  'Preocupar-se demais com diversas coisas',
+  'Dificuldade para relaxar',
+  'Ficar tão agitado(a) que é difícil permanecer parado(a)',
+  'Ficar facilmente irritado(a) ou impaciente',
+  'Sentir medo, como se algo terrível fosse acontecer'
+]
+
+const SCALE_OPTIONS = [
+  { value: 0, label: 'Nunca' },
+  { value: 1, label: 'Vários dias' },
+  { value: 2, label: 'Mais da metade dos dias' },
+  { value: 3, label: 'Quase todos os dias' }
+]
+
+function getPHQ9Severity(score: number) {
+  if (score <= 4) return { label: 'Mínimo', color: 'bg-green-100 text-green-700' }
+  if (score <= 9) return { label: 'Leve', color: 'bg-yellow-100 text-yellow-700' }
+  if (score <= 14) return { label: 'Moderado', color: 'bg-orange-100 text-orange-700' }
+  if (score <= 19) return { label: 'Moderadamente Severo', color: 'bg-red-100 text-red-700' }
+  return { label: 'Severo', color: 'bg-red-200 text-red-800' }
+}
+
+function getGAD7Severity(score: number) {
+  if (score <= 4) return { label: 'Mínimo', color: 'bg-green-100 text-green-700' }
+  if (score <= 9) return { label: 'Leve', color: 'bg-yellow-100 text-yellow-700' }
+  if (score <= 14) return { label: 'Moderado', color: 'bg-orange-100 text-orange-700' }
+  return { label: 'Severo', color: 'bg-red-200 text-red-800' }
+}
 
 export default function Dashboard() {
   const [prescriptions, setPrescriptions] = useState<any[]>([])
@@ -60,7 +119,6 @@ export default function Dashboard() {
   const [patientName, setPatientName] = useState('')
   const [prescriptionDate, setPrescriptionDate] = useState('')
   
-  // Estados de Filtros e Especialidades
   const [selectedSpecialtyFilter, setSelectedSpecialtyFilter] = useState('todas')
   const [selectedClassFilter, setSelectedClassFilter] = useState('todas')
   const [selectedTarjaFilter, setSelectedTarjaFilter] = useState('todas')
@@ -68,10 +126,14 @@ export default function Dashboard() {
   const [drugInteractionsAlerts, setDrugInteractionsAlerts] = useState<string[]>([])
   
   // Ferramentas da Aba Especialistas
-  const [activeSpecialtyTool, setActiveSpecialtyTool] = useState('ortopedia') // ortopedia, pediatria, cardiologia, ginecologia, psiquiatria
+  const [activeSpecialtyTool, setActiveSpecialtyTool] = useState('ortopedia')
   const [painLevel, setPainLevel] = useState<number | null>(null)
   const [selectedBodyPart, setSelectedBodyPart] = useState<string>('')
   const [bodySide, setBodySide] = useState<'frente' | 'costas'>('frente')
+
+  // Escalas clínicas (PHQ-9 / GAD-7)
+  const [phq9Answers, setPhq9Answers] = useState<(number | null)[]>(Array(9).fill(null))
+  const [gad7Answers, setGad7Answers] = useState<(number | null)[]>(Array(7).fill(null))
 
   const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
@@ -94,7 +156,12 @@ export default function Dashboard() {
   const [favoriteName, setFavoriteName] = useState('')
   const [isSavingFavorite, setIsSavingFavorite] = useState(false)
 
-  // Inatividade (15 min)
+  const phq9AllAnswered = phq9Answers.every(a => a !== null)
+  const phq9Score = phq9Answers.reduce((sum: number, v) => sum + (v ?? 0), 0)
+  const phq9SelfHarmFlag = (phq9Answers[8] ?? 0) > 0
+  const gad7AllAnswered = gad7Answers.every(a => a !== null)
+  const gad7Score = gad7Answers.reduce((sum: number, v) => sum + (v ?? 0), 0)
+
   useEffect(() => {
     let inactivityTimer: NodeJS.Timeout
     const logoutDueToInactivity = async () => {
@@ -178,6 +245,7 @@ export default function Dashboard() {
         setTimeLeftText('Erro ao carregar status')
       }
     }
+
     if (supabaseUrl !== 'https://placeholder.supabase.co') loadUserData()
     else setTimeLeftText('3 dias restantes (Modo Teste)')
   }, [])
@@ -291,6 +359,8 @@ export default function Dashboard() {
     setDrugInteractionsAlerts([])
     setPainLevel(null)
     setSelectedBodyPart('')
+    setPhq9Answers(Array(9).fill(null))
+    setGad7Answers(Array(7).fill(null))
   }
 
   const handlePrint = () => window.print()
@@ -436,7 +506,7 @@ export default function Dashboard() {
                 <Star className="text-yellow-500" size={24} />
               </div>
               <h3 className="text-2xl font-black text-primary-blue mb-2">Salvar Protocolo</h3>
-              <p className="text-sm text-gray-500 mb-6">Dê um nome para esta prescrição.</p>
+              <p className="text-sm text-gray-500 mb-6">Dê um nome para esta receita.</p>
               <input
                 type="text"
                 placeholder="Ex: Otite Infantil..."
@@ -534,7 +604,7 @@ export default function Dashboard() {
               </h1>
             </header>
 
-            {/* ABA DE PRESCRIÇÃO LIMPA E OTIMIZADA (Sem sobrecarga) */}
+            {/* ABA DE PRESCRIÇÃO LIMPA E OTIMIZADA */}
             {activeTab === 'prescricao' && (
               <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
                 <section className="flex-1 bg-white rounded-3xl shadow-soft flex flex-col overflow-hidden p-4">
@@ -616,6 +686,18 @@ export default function Dashboard() {
                         <input type="text" value={prescriptionDate} onChange={(e) => setPrescriptionDate(e.target.value)} placeholder="DD/MM/AAAA" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none font-bold text-primary-blue md:text-center" />
                       </div>
                     </div>
+
+                    <div className="bg-bg-ice p-3 rounded-xl border border-gray-200 space-y-2">
+                      <p className="text-[11px] font-black text-primary-blue uppercase tracking-wide">Prontuário SOAP Adaptado — {docSpecialty || 'CLÍNICO GERAL'}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" placeholder="S — Queixa principal / Subjetivo" className="bg-white border rounded-lg p-1.5 text-xs outline-none" />
+                        <input type="text" placeholder="O — Sinais Vitais / Exame Físico" className="bg-white border rounded-lg p-1.5 text-xs outline-none" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" placeholder="A — Avaliação / CID-10" className="bg-white border rounded-lg p-1.5 text-xs outline-none" />
+                        <input type="text" placeholder="P — Conduta / Plano" className="bg-white border rounded-lg p-1.5 text-xs outline-none" />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex-1 overflow-y-auto p-6">
@@ -664,10 +746,10 @@ export default function Dashboard() {
                 <div className="flex flex-wrap gap-2 border-b pb-4 shrink-0">
                   {[
                     { id: 'ortopedia', label: '🦴 Ortopedia & Traumatologia' },
+                    { id: 'psiquiatria', label: '🧠 Psiquiatria / Psicologia (Escalas PHQ-9 & GAD-7)' },
                     { id: 'pediatria', label: '👶 Pediatria' },
                     { id: 'cardiologia', label: '❤️ Cardiologia' },
                     { id: 'ginecologia', label: '🌸 Ginecologia' },
-                    { id: 'psiquiatria', label: '🧠 Psiquiatria / Psicologia' },
                   ].map((spec) => (
                     <button
                       key={spec.id}
@@ -689,7 +771,6 @@ export default function Dashboard() {
                     <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                       <h3 className="text-lg font-bold text-primary-blue">Módulo de Ortopedia & Dor</h3>
                       
-                      {/* Escala de Dor EVA */}
                       <div className="bg-white p-4 rounded-2xl border border-gray-100">
                         <div className="flex justify-between items-center mb-2">
                           <label className="text-xs font-bold text-gray-600">Escala Visual Analógica de Dor (EVA)</label>
@@ -710,7 +791,7 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* MAPA CORPORAL INTUITIVO (BONECO COM MARCAÇÃO VERMELHA) */}
+                      {/* MAPA CORPORAL INTUITIVO COM MARCAÇÃO VERMELHA */}
                       <div className="bg-white p-5 rounded-2xl border border-gray-100">
                         <div className="flex justify-between items-center mb-4">
                           <div>
@@ -723,7 +804,6 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        {/* Boneco Visual em Grid Anatômico */}
                         <div className="max-w-md mx-auto flex flex-col items-center gap-3 py-4">
                           {bodySide === 'frente' ? (
                             <div className="w-full grid grid-cols-2 gap-3">
@@ -773,19 +853,110 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* FERRAMENTA 2: PEDIATRIA */}
+                {/* FERRAMENTA 2: PSIQUIATRIA (PHQ-9 & GAD-7) */}
+                {activeSpecialtyTool === 'psiquiatria' && (
+                  <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-6">
+                    <h3 className="text-lg font-bold text-primary-blue">Escalas Clínicas de Triagem (PHQ-9 & GAD-7)</h3>
+                    <p className="text-xs text-gray-500">Nas últimas 2 semanas, com que frequência o(a) paciente foi incomodado(a) por:</p>
+
+                    {/* PHQ-9 */}
+                    <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-black text-primary-blue">PHQ-9 (Rastreio de Depressão)</span>
+                        {phq9AllAnswered && (
+                          <span className={`text-xs font-black px-3 py-1 rounded-full ${getPHQ9Severity(phq9Score).color}`}>
+                            {phq9Score} pts — {getPHQ9Severity(phq9Score).label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {PHQ9_QUESTIONS.map((q, qIdx) => (
+                          <div key={qIdx} className="text-xs border-b border-gray-100 pb-3">
+                            <p className="text-gray-700 mb-2 font-medium">{qIdx + 1}. {q}</p>
+                            <div className="grid grid-cols-4 gap-2">
+                              {SCALE_OPTIONS.map(opt => (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...phq9Answers]
+                                    updated[qIdx] = opt.value
+                                    setPhq9Answers(updated)
+                                  }}
+                                  className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all text-center ${
+                                    phq9Answers[qIdx] === opt.value
+                                      ? 'bg-primary-blue text-white shadow-sm'
+                                      : 'bg-bg-ice text-gray-600 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {phq9SelfHarmFlag && (
+                        <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl text-xs text-red-700 font-medium">
+                          ⚠️ Item 9 positivo — avaliar risco de autolesão/suicídio antes de encerrar o atendimento.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* GAD-7 */}
+                    <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-black text-primary-blue">GAD-7 (Rastreio de Ansiedade)</span>
+                        {gad7AllAnswered && (
+                          <span className={`text-xs font-black px-3 py-1 rounded-full ${getGAD7Severity(gad7Score).color}`}>
+                            {gad7Score} pts — {getGAD7Severity(gad7Score).label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {GAD7_QUESTIONS.map((q, qIdx) => (
+                          <div key={qIdx} className="text-xs border-b border-gray-100 pb-3">
+                            <p className="text-gray-700 mb-2 font-medium">{qIdx + 1}. {q}</p>
+                            <div className="grid grid-cols-4 gap-2">
+                              {SCALE_OPTIONS.map(opt => (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...gad7Answers]
+                                    updated[qIdx] = opt.value
+                                    setGad7Answers(updated)
+                                  }}
+                                  className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all text-center ${
+                                    gad7Answers[qIdx] === opt.value
+                                      ? 'bg-primary-blue text-white shadow-sm'
+                                      : 'bg-bg-ice text-gray-600 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* FERRAMENTA 3: PEDIATRIA */}
                 {activeSpecialtyTool === 'pediatria' && (
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Ferramentas de Pediatria</h3>
                     <div className="grid md:grid-cols-3 gap-4">
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Peso do Criança (kg)</label><input type="number" placeholder="Ex: 12.5" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Peso da Criança (kg)</label><input type="number" placeholder="Ex: 12.5" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
                       <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Idade</label><input type="text" placeholder="Ex: 2 anos" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
                       <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Curva OMS</label><input type="text" placeholder="Percentil Peso/Altura" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
                     </div>
                   </div>
                 )}
 
-                {/* FERRAMENTA 3: CARDIOLOGIA */}
+                {/* FERRAMENTA 4: CARDIOLOGIA */}
                 {activeSpecialtyTool === 'cardiologia' && (
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Cardiologia & Hemodinâmica</h3>
@@ -796,7 +967,7 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* FERRAMENTA 4: GINECOLOGIA */}
+                {/* FERRAMENTA 5: GINECOLOGIA */}
                 {activeSpecialtyTool === 'ginecologia' && (
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Ginecologia & Obstetrícia</h3>
@@ -804,17 +975,6 @@ export default function Dashboard() {
                       <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">DUM</label><input type="date" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
                       <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Fórmula Obstétrica</label><input type="text" placeholder="G_ P_ A_" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
                       <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Rastreio Preventivo</label><input type="text" placeholder="Papanicolau / Mamografia" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
-                    </div>
-                  </div>
-                )}
-
-                {/* FERRAMENTA 5: PSIQUIATRIA */}
-                {activeSpecialtyTool === 'psiquiatria' && (
-                  <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
-                    <h3 className="text-lg font-bold text-primary-blue">Psiquiatria & Escalas Clínicas</h3>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Escala PHQ-9 (Depressão)</label><input type="text" placeholder="Pontuação total..." className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
-                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Escala GAD-7 (Ansiedade)</label><input type="text" placeholder="Pontuação total..." className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
                     </div>
                   </div>
                 )}
