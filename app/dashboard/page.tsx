@@ -66,6 +66,51 @@ const KNOWN_INTERACTIONS = [
   { drugA: 'Fluoxetina', drugB: 'Tramadol', msg: 'Risco severo de Síndrome Serotoninérgica.' }
 ]
 
+// ===== ESCALAS CLÍNICAS: PHQ-9 (Rastreio de Depressão) e GAD-7 (Rastreio de Ansiedade) =====
+const PHQ9_QUESTIONS = [
+  'Pouco interesse ou prazer em fazer as coisas',
+  'Sentir-se para baixo, deprimido(a) ou sem esperança',
+  'Dificuldade para pegar no sono, continuar dormindo ou dormir demais',
+  'Sentir-se cansado(a) ou com pouca energia',
+  'Falta de apetite ou comer demais',
+  'Sentir-se mal consigo mesmo(a) — ou sentir que é um fracasso ou que decepcionou a si mesmo(a) ou a família',
+  'Dificuldade para se concentrar em tarefas, como ler ou assistir TV',
+  'Lentidão para se mover ou falar (perceptível a outras pessoas) — ou o oposto, estar tão agitado(a) que se movimenta muito mais que o habitual',
+  'Pensamentos de que seria melhor estar morto(a) ou de se machucar de alguma forma'
+]
+
+const GAD7_QUESTIONS = [
+  'Sentir-se nervoso(a), ansioso(a) ou muito tenso(a)',
+  'Não conseguir parar ou controlar as preocupações',
+  'Preocupar-se demais com diversas coisas',
+  'Dificuldade para relaxar',
+  'Ficar tão agitado(a) que é difícil permanecer parado(a)',
+  'Ficar facilmente irritado(a) ou impaciente',
+  'Sentir medo, como se algo terrível fosse acontecer'
+]
+
+const SCALE_OPTIONS = [
+  { value: 0, label: 'Nunca' },
+  { value: 1, label: 'Vários dias' },
+  { value: 2, label: 'Mais da metade dos dias' },
+  { value: 3, label: 'Quase todos os dias' }
+]
+
+function getPHQ9Severity(score: number) {
+  if (score <= 4) return { label: 'Mínimo', color: 'bg-green-100 text-green-700' }
+  if (score <= 9) return { label: 'Leve', color: 'bg-yellow-100 text-yellow-700' }
+  if (score <= 14) return { label: 'Moderado', color: 'bg-orange-100 text-orange-700' }
+  if (score <= 19) return { label: 'Moderadamente Severo', color: 'bg-red-100 text-red-700' }
+  return { label: 'Severo', color: 'bg-red-200 text-red-800' }
+}
+
+function getGAD7Severity(score: number) {
+  if (score <= 4) return { label: 'Mínimo', color: 'bg-green-100 text-green-700' }
+  if (score <= 9) return { label: 'Leve', color: 'bg-yellow-100 text-yellow-700' }
+  if (score <= 14) return { label: 'Moderado', color: 'bg-orange-100 text-orange-700' }
+  return { label: 'Severo', color: 'bg-red-200 text-red-800' }
+}
+
 export default function Dashboard() {
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [search, setSearch] = useState('')
@@ -82,6 +127,10 @@ export default function Dashboard() {
   const [drugInteractionsAlerts, setDrugInteractionsAlerts] = useState<string[]>([])
   const [painLevel, setPainLevel] = useState<number | null>(null)
   const [selectedBodyPart, setSelectedBodyPart] = useState<string>('')
+
+  // Escalas clínicas (PHQ-9 / GAD-7)
+  const [phq9Answers, setPhq9Answers] = useState<(number | null)[]>(Array(9).fill(null))
+  const [gad7Answers, setGad7Answers] = useState<(number | null)[]>(Array(7).fill(null))
 
   const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
@@ -103,6 +152,14 @@ export default function Dashboard() {
   const [showSaveFavoriteModal, setShowSaveFavoriteModal] = useState(false)
   const [favoriteName, setFavoriteName] = useState('')
   const [isSavingFavorite, setIsSavingFavorite] = useState(false)
+
+  // Totais das escalas clínicas
+  const phq9AllAnswered = phq9Answers.every(a => a !== null)
+  const phq9Score = phq9Answers.reduce((sum: number, v) => sum + (v ?? 0), 0)
+  const phq9SelfHarmFlag = (phq9Answers[8] ?? 0) > 0
+  const gad7AllAnswered = gad7Answers.every(a => a !== null)
+  const gad7Score = gad7Answers.reduce((sum: number, v) => sum + (v ?? 0), 0)
+  const isPsychSpecialty = docSpecialty.toLowerCase().includes('psiqu') || docSpecialty.toLowerCase().includes('psicolog')
 
   // Inatividade (15 min)
   useEffect(() => {
@@ -332,6 +389,8 @@ export default function Dashboard() {
     setDrugInteractionsAlerts([])
     setPainLevel(null)
     setSelectedBodyPart('')
+    setPhq9Answers(Array(9).fill(null))
+    setGad7Answers(Array(7).fill(null))
   }
 
   const handlePrint = () => window.print()
@@ -691,10 +750,10 @@ export default function Dashboard() {
                   </div>
                 </section>
                 
-                {/* LADO DIREITO: PACIENTE, PRONTUÁRIO SOAP, EVA, MAPA CORPORAL E RECEITA */}
+                {/* LADO DIREITO: PACIENTE, PRONTUÁRIO SOAP, EVA, MAPA CORPORAL, ESCALAS CLÍNICAS E RECEITA */}
                 <section className="flex-[1.2] bg-white rounded-3xl shadow-xl flex flex-col relative overflow-hidden">
                   
-                  <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0 space-y-4">
+                  <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0 space-y-4 overflow-y-auto">
                     <div className="flex flex-col md:flex-row gap-4">
                       <div className="flex-1">
                         <label className="block text-xs font-bold text-gray-500 mb-1">NOME DO PACIENTE</label>
@@ -718,7 +777,7 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* PRONTUÁRIO DINÂMICO SOAP + ESCALA DE DOR + MAPA CORPORAL */}
+                    {/* PRONTUÁRIO DINÂMICO SOAP + ESCALA DE DOR + MAPA CORPORAL + ESCALAS CLÍNICAS */}
                     <div className="bg-bg-ice p-4 rounded-2xl border border-gray-200 space-y-3">
                       <p className="text-xs font-black text-primary-blue uppercase tracking-wide">Prontuário SOAP Adaptado — {docSpecialty || 'CLÍNICO GERAL'}</p>
                       
@@ -799,6 +858,96 @@ export default function Dashboard() {
                           ))}
                         </div>
                       </div>
+
+                      {/* ESCALAS CLÍNICAS — PHQ-9 / GAD-7 (exibidas para psiquiatria/psicologia) */}
+                      {isPsychSpecialty && (
+                        <div className="bg-white p-3 rounded-xl border border-gray-100 space-y-4">
+                          <p className="text-xs font-bold text-gray-600">Escalas Clínicas de Triagem — nas últimas 2 semanas, com que frequência o(a) paciente foi incomodado(a) por:</p>
+
+                          {/* PHQ-9 */}
+                          <div className="border border-gray-100 rounded-lg p-3">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-xs font-black text-primary-blue">PHQ-9 (Rastreio de Depressão)</span>
+                              {phq9AllAnswered && (
+                                <span className={`text-xs font-black px-2 py-0.5 rounded-full ${getPHQ9Severity(phq9Score).color}`}>
+                                  {phq9Score} pts — {getPHQ9Severity(phq9Score).label}
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {PHQ9_QUESTIONS.map((q, qIdx) => (
+                                <div key={qIdx} className="text-xs">
+                                  <p className="text-gray-700 mb-1">{qIdx + 1}. {q}</p>
+                                  <div className="flex gap-1">
+                                    {SCALE_OPTIONS.map(opt => (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = [...phq9Answers]
+                                          updated[qIdx] = opt.value
+                                          setPhq9Answers(updated)
+                                        }}
+                                        className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                          phq9Answers[qIdx] === opt.value
+                                            ? 'bg-primary-blue text-white'
+                                            : 'bg-bg-ice text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            {phq9SelfHarmFlag && (
+                              <div className="mt-2 bg-red-50 border-l-4 border-red-500 p-2 rounded-r-lg text-[11px] text-red-700 font-medium">
+                                ⚠️ Item 9 positivo — avaliar risco de autolesão/suicídio antes de encerrar o atendimento.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* GAD-7 */}
+                          <div className="border border-gray-100 rounded-lg p-3">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-xs font-black text-primary-blue">GAD-7 (Rastreio de Ansiedade)</span>
+                              {gad7AllAnswered && (
+                                <span className={`text-xs font-black px-2 py-0.5 rounded-full ${getGAD7Severity(gad7Score).color}`}>
+                                  {gad7Score} pts — {getGAD7Severity(gad7Score).label}
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {GAD7_QUESTIONS.map((q, qIdx) => (
+                                <div key={qIdx} className="text-xs">
+                                  <p className="text-gray-700 mb-1">{qIdx + 1}. {q}</p>
+                                  <div className="flex gap-1">
+                                    {SCALE_OPTIONS.map(opt => (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = [...gad7Answers]
+                                          updated[qIdx] = opt.value
+                                          setGad7Answers(updated)
+                                        }}
+                                        className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                          gad7Answers[qIdx] === opt.value
+                                            ? 'bg-primary-blue text-white'
+                                            : 'bg-bg-ice text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 gap-2">
                         <input type="text" placeholder="A — Avaliação / CID-10" className="bg-white border rounded-xl p-2 text-xs outline-none" />
@@ -1013,6 +1162,7 @@ export default function Dashboard() {
                        <option value="GINECOLOGISTA E OBSTETRA" />
                        <option value="ORTOPEDISTA E TRAUMATOLOGISTA" />
                        <option value="PSIQUIATRA" />
+                       <option value="PSICÓLOGO(A)" />
                      </datalist>
                    </div>
 
