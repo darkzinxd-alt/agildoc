@@ -369,10 +369,21 @@ export default function Dashboard() {
                        </ul>
                      )}
                   </div>
-                  <div className="p-4 border-t flex justify-end gap-3 bg-gray-50">
-                    <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold">Limpar</button>
-                    <button onClick={handlePrint} className="px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d]"><Printer size={16} /> Imprimir (2 Vias)</button>
-                  </div>
+                  <div className="p-4 border-t flex justify-end gap-3 bg-gray-50 shrink-0">
+  <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold transition-colors">
+    Limpar
+  </button>
+  
+  {/* Botão de E-mail restaurado para configuração futura */}
+  <button className="px-5 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 shadow-md hover:bg-[#111e38] transition-colors">
+    <Mail size={16} /> Enviar por E-mail
+  </button>
+  
+  {/* Botão de Imprimir limpo e elegante */}
+  <button onClick={handlePrint} className="px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d] transition-colors">
+    <Printer size={16} /> Imprimir
+  </button>
+</div>
                 </section>
               </div>
             )}
