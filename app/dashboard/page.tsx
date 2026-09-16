@@ -16,14 +16,14 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 })
 
 const MEDICINES_DB = [
-  { id: 'm1', n: 'Dipirona Sódica 1g', v: 'IV', f: ['6/6h', '8/8h', 'ACM'], t: 'Analgésico' },
-  { id: 'm2', n: 'Dipirona Sódica 500mg', v: 'VO', f: ['6/6h', '8/8h', 'ACM'], t: 'Analgésico' },
-  { id: 'm9', n: 'Ondansetrona 4mg', v: 'IV', f: ['8/8h', 'ACM', 'Dose Única'], t: 'Antiemético' },
-  { id: 'm16', n: 'Ceftriaxona 1g', v: 'IV', f: ['12/12h', '24/24h'], t: 'Antibiótico' },
-  { id: 'm17', n: 'Azitromicina 500mg', v: 'VO', f: ['24/24h (3 dias)', '24/24h (5 dias)'], t: 'Antibiótico' },
-  { id: 'm23', n: 'Dexametasona 4mg/ml', v: 'IV', f: ['Dose Única', '8/8h'], t: 'Corticoide' },
-  { id: 'm26', n: 'Prometazina 50mg', v: 'IM', f: ['Dose Única'], t: 'Antialérgico' },
-  { id: 'm33', n: 'Soro Fisiológico 0.9% 500ml', v: 'IV', f: ['Correr em 1h', 'Manutenção'], t: 'Hidratação' },
+  { id: 'm1', n: 'Dipirona Sódica 1g', v: 'IV', f: ['6/6h', '8/8h', 'ACM'], t: 'Analgésico', specialty: 'geral', tarja: 'branca' },
+  { id: 'm2', n: 'Dipirona Sódica 500mg', v: 'VO', f: ['6/6h', '8/8h', 'ACM'], t: 'Analgésico', specialty: 'geral', tarja: 'branca' },
+  { id: 'm9', n: 'Ondansetrona 4mg', v: 'IV', f: ['8/8h', 'ACM', 'Dose Única'], t: 'Antiemético', specialty: 'geral', tarja: 'vermelha' },
+  { id: 'm16', n: 'Ceftriaxona 1g', v: 'IV', f: ['12/12h', '24/24h'], t: 'Antibiótico', specialty: 'pediatria', tarja: 'vermelha' },
+  { id: 'm17', n: 'Azitromicina 500mg', v: 'VO', f: ['24/24h (3 dias)', '24/24h (5 dias)'], t: 'Antibiótico', specialty: 'pediatria', tarja: 'vermelha' },
+  { id: 'm23', n: 'Dexametasona 4mg/ml', v: 'IV', f: ['Dose Única', '8/8h'], t: 'Corticoide', specialty: 'ortopedia', tarja: 'vermelha' },
+  { id: 'm26', n: 'Prometazina 50mg', v: 'IM', f: ['Dose Única'], t: 'Antialérgico', specialty: 'geral', tarja: 'vermelha' },
+  { id: 'm33', n: 'Soro Fisiológico 0.9% 500ml', v: 'IV', f: ['Correr em 1h', 'Manutenção'], t: 'Hidratação', specialty: 'geral', tarja: 'branca' },
 ]
 
 const RECEITAS_DB = [
@@ -60,6 +60,13 @@ const RECEITAS_DB = [
   }
 ]
 
+// Tabela de Interações Medicamentosas (Item 3)
+const KNOWN_INTERACTIONS = [
+  { drugA: 'Diclofenaco', drugB: 'Aspirina', msg: 'Risco aumentado de sangramento gastrintestinal e toxicidade renal.' },
+  { drugA: 'Ceftriaxona', drugB: 'Soro Fisiológico com Cálcio', msg: 'Risco de precipitação fatal de sais de cálcio.' },
+  { drugA: 'Fluoxetina', drugB: 'Tramadol', msg: 'Risco severo de Síndrome Serotoninérgica.' }
+]
+
 export default function Dashboard() {
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [search, setSearch] = useState('')
@@ -68,12 +75,18 @@ export default function Dashboard() {
   
   const [patientName, setPatientName] = useState('')
   const [prescriptionDate, setPrescriptionDate] = useState('')
+  
+  // Novos estados para Filtros em Camadas e Segurança (Itens 1, 2 e 3)
+  const [selectedSpecialtyFilter, setSelectedSpecialtyFilter] = useState('todas')
+  const [selectedClassFilter, setSelectedClassFilter] = useState('todas')
+  const [selectedTarjaFilter, setSelectedTarjaFilter] = useState('todas')
+  const [patientAllergies, setPatientAllergies] = useState<string[]>(['Dipirona']) // Exemplo de teste
+  const [drugInteractionsAlerts, setDrugInteractionsAlerts] = useState<string[]>([])
 
   const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
   const [isExpired, setIsExpired] = useState(false)
   
-  // Dados do Carimbo começam EM BRANCO para novos médicos
   const [docName, setDocName] = useState('')
   const [docCRM, setDocCRM] = useState('')
   const [docUF, setDocUF] = useState('RJ')
@@ -126,7 +139,6 @@ export default function Dashboard() {
         if (user) {
           setUserEmail(user.email || '')
           
-          // Tenta carregar as configurações salvas especificamente para este usuário no localStorage com ID único
           const userId = user.id
           const savedName = localStorage.getItem(`agildoc_name_${userId}`)
           const savedCRM = localStorage.getItem(`agildoc_crm_${userId}`)
@@ -178,7 +190,7 @@ export default function Dashboard() {
         const { data: meds } = await supabase.from('medicines').select('*')
         if (meds) {
           setDbMedicines(meds.map((d: any) => ({
-            id: d.id, n: d.name, v: d.route, f: d.frequencies, t: d.category
+            id: d.id, n: d.name, v: d.route, f: d.frequencies, t: d.category, specialty: d.specialty || 'geral', tarja: d.tarja || 'branca'
           })))
         }
       } catch (error) {
@@ -193,6 +205,51 @@ export default function Dashboard() {
       setTimeLeftText('3 dias restantes (Modo Teste)')
     }
   }, [])
+
+  // Função de Busca Tolerante a Erros / Fuzzy Match (Item 1)
+  const fuzzyMatch = (text: string, query: string) => {
+    if (!query) return true
+    const cleanText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    const cleanQuery = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    return cleanText.includes(cleanQuery)
+  }
+
+  // Verificação de Alergia e Interação Medicamentosa ao Adicionar (Itens 2 e 3)
+  const handleAddMedicineWithChecks = (med: any, freq: string) => {
+    const isAllergic = patientAllergies.some(allergy => 
+      med.n.toLowerCase().includes(allergy.toLowerCase()) || 
+      (med.t && med.t.toLowerCase().includes(allergy.toLowerCase()))
+    )
+
+    if (isAllergic) {
+      const confirmar = confirm(`⚠️ ALERTA DE ALERGIA: O paciente possui restrição registrada a "${med.n}" ou classe similar. Deseja prosseguir?`)
+      if (!confirmar) return
+    }
+
+    const newItems = [...prescriptions, { id: Date.now() + Math.random(), name: med.n, dose: med.v, freq: freq, class: med.t }]
+    setPrescriptions(newItems)
+    checkInteractions(newItems)
+  }
+
+  const checkInteractions = (currentList: any[]) => {
+    const alerts: string[] = []
+    for (let i = 0; i < currentList.length; i++) {
+      for (let j = i + 1; j < currentList.length; j++) {
+        const med1 = currentList[i].name
+        const med2 = currentList[j].name
+
+        KNOWN_INTERACTIONS.forEach(inter => {
+          if (
+            (med1.toLowerCase().includes(inter.drugA.toLowerCase()) && med2.toLowerCase().includes(inter.drugB.toLowerCase())) ||
+            (med1.toLowerCase().includes(inter.drugB.toLowerCase()) && med2.toLowerCase().includes(inter.drugA.toLowerCase()))
+          ) {
+            alerts.push(`Interação entre ${med1} e ${med2}: ${inter.msg}`)
+          }
+        })
+      }
+    }
+    setDrugInteractionsAlerts(alerts)
+  }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -236,7 +293,6 @@ export default function Dashboard() {
   const handleSaveProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      // Salva no localStorage atrelando ao ID único do usuário logado
       localStorage.setItem(`agildoc_name_${user.id}`, docName)
       localStorage.setItem(`agildoc_crm_${user.id}`, docCRM)
       localStorage.setItem(`agildoc_uf_${user.id}`, docUF)
@@ -257,10 +313,6 @@ export default function Dashboard() {
 
   const ALL_MEDICINES = [...MEDICINES_DB, ...dbMedicines]
 
-  const addMedicine = (med: any, freq: string) => {
-    setPrescriptions([...prescriptions, { id: Date.now() + Math.random(), name: med.n, dose: med.v, freq: freq }])
-  }
-
   const applyReceita = (receita: any) => {
     const newItems = receita.items.map((item: any, idx: number) => ({
       id: Date.now() + idx, name: item.name, dose: item.dose, freq: item.freq
@@ -280,6 +332,7 @@ export default function Dashboard() {
     setPrescriptions([])
     setPatientName('')
     setPrescriptionDate('')
+    setDrugInteractionsAlerts([])
   }
 
   const handlePrint = () => window.print()
@@ -449,7 +502,7 @@ export default function Dashboard() {
                 <Star className="text-yellow-500" size={24} />
               </div>
               <h3 className="text-2xl font-black text-primary-blue mb-2">Salvar Protocolo</h3>
-              <p className="text-sm text-gray-500 mb-6">Dê um nome para esta prescrição. Ela ficará salva na aba "Meus Protocolos".</p>
+              <p className="text-sm text-gray-500 mb-6">Dê um nome para esta receita. Ela ficará salva na aba "Meus Protocolos".</p>
               <input
                 type="text"
                 placeholder="Ex: Otite Infantil, Hipertensão Leve..."
@@ -477,7 +530,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Barra Superior com E-mail Real e Avatar do Médico */}
         <div className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-30">
           <Logo className="h-8" />
           <div className="flex items-center gap-4">
@@ -548,20 +600,91 @@ export default function Dashboard() {
 
             {activeTab === 'prescricao' && (
               <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
-                <section className="flex-1 bg-white rounded-3xl shadow-soft flex flex-col overflow-hidden">
-                  <div className="p-4 border-b border-gray-50 sticky top-0 z-10">
-                    <div className="relative group">
+                
+                {/* LADO ESQUERDO: FILTROS EM CAMADAS E BUSCA DE MEDICAMENTOS (Itens 1 e 2) */}
+                <section className="flex-1 bg-white rounded-3xl shadow-soft flex flex-col overflow-hidden p-4">
+                  <div className="space-y-3 mb-4 border-b pb-4">
+                    <div className="relative">
                       <Search size={20} className="absolute left-4 top-3.5 text-gray-400" />
-                      <input type="text" placeholder="Buscar medicamento..." className="w-full bg-bg-ice border border-gray-200 rounded-2xl py-3.5 pl-12 pr-4 outline-none" value={search} onChange={(e) => setSearch(e.target.value)} />
+                      <input 
+                        type="text" 
+                        placeholder="Busca inteligente (ex: dipirona)..." 
+                        className="w-full bg-bg-ice border border-gray-200 rounded-2xl py-3 pl-12 pr-4 outline-none text-sm font-medium" 
+                        value={search} 
+                        onChange={(e) => setSearch(e.target.value)} 
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <select 
+                        value={selectedSpecialtyFilter} 
+                        onChange={(e) => setSelectedSpecialtyFilter(e.target.value)}
+                        className="bg-bg-ice border border-gray-200 rounded-xl p-2 text-xs font-bold text-primary-blue outline-none"
+                      >
+                        <option value="todas">Esp: Todas</option>
+                        <option value="pediatria">Pediatria</option>
+                        <option value="cardiologia">Cardiologia</option>
+                        <option value="ortopedia">Ortopedia</option>
+                        <option value="geral">Clínico Geral</option>
+                      </select>
+
+                      <select 
+                        value={selectedTarjaFilter} 
+                        onChange={(e) => setSelectedTarjaFilter(e.target.value)}
+                        className="bg-bg-ice border border-gray-200 rounded-xl p-2 text-xs font-bold text-primary-blue outline-none"
+                      >
+                        <option value="todas">Tarja: Todas</option>
+                        <option value="branca">Branca</option>
+                        <option value="vermelha">Vermelha</option>
+                      </select>
+
+                      <select 
+                        value={selectedClassFilter} 
+                        onChange={(e) => setSelectedClassFilter(e.target.value)}
+                        className="bg-bg-ice border border-gray-200 rounded-xl p-2 text-xs font-bold text-primary-blue outline-none"
+                      >
+                        <option value="todas">Classe: Todas</option>
+                        <option value="Analgésico">Analgésico</option>
+                        <option value="Antibiótico">Antibiótico</option>
+                        <option value="Antiemético">Antiemético</option>
+                      </select>
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {ALL_MEDICINES.filter(m => m.n.toLowerCase().includes(search.toLowerCase())).map(med => (
-                      <div key={med.id} className="p-4 bg-white border border-gray-100 rounded-2xl">
-                        <h4 className="font-bold text-primary-blue mb-2">{med.n}</h4>
-                        <div className="flex flex-wrap gap-2">
+
+                  {/* Alerta de Interação Medicamentosa (Item 3) */}
+                  {drugInteractionsAlerts.length > 0 && (
+                    <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-3 rounded-r-xl text-xs text-red-700">
+                      <p className="font-bold mb-1">⚠️ Alerta de Interação Medicamentosa:</p>
+                      <ul className="list-disc pl-4 space-y-1">
+                        {drugInteractionsAlerts.map((alert, idx) => (
+                          <li key={idx}>{alert}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex-1 overflow-y-auto space-y-2">
+                    {ALL_MEDICINES.filter(med => {
+                      const matchText = fuzzyMatch(med.n, search) || fuzzyMatch(med.t, search)
+                      const matchSpecialty = selectedSpecialtyFilter === 'todas' || (med.specialty && med.specialty.toLowerCase() === selectedSpecialtyFilter)
+                      const matchTarja = selectedTarjaFilter === 'todas' || (med.tarja && med.tarja.toLowerCase() === selectedTarjaFilter)
+                      const matchClass = selectedClassFilter === 'todas' || (med.t && med.t.toLowerCase().includes(selectedClassFilter.toLowerCase()))
+                      return matchText && matchSpecialty && matchTarja && matchClass
+                    }).map(med => (
+                      <div key={med.id} className="p-3 bg-white border border-gray-100 rounded-2xl hover:shadow-sm transition-all">
+                        <div className="flex justify-between items-start mb-1">
+                          <h4 className="font-bold text-primary-blue text-sm">{med.n}</h4>
+                          <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{med.t}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-2">
                           {med.f.map((freq: string, i: number) => (
-                            <button key={i} onClick={() => addMedicine(med, freq)} className="bg-action-mint/10 text-action-mint px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-action-mint hover:text-white">+ {freq}</button>
+                            <button 
+                              key={i} 
+                              onClick={() => handleAddMedicineWithChecks(med, freq)} 
+                              className="bg-action-mint/10 text-action-mint px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-action-mint hover:text-white transition-colors"
+                            >
+                              + {freq}
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -569,9 +692,10 @@ export default function Dashboard() {
                   </div>
                 </section>
                 
+                {/* LADO DIREITO: PACIENTE, PRONTUÁRIO SOAP DINÂMICO E RECEITA (Itens 2 e 4) */}
                 <section className="flex-[1.2] bg-white rounded-3xl shadow-xl flex flex-col relative overflow-hidden">
                   
-                  <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0">
+                  <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0 space-y-4">
                     <div className="flex flex-col md:flex-row gap-4">
                       <div className="flex-1">
                         <label className="block text-xs font-bold text-gray-500 mb-1">NOME DO PACIENTE</label>
@@ -594,8 +718,34 @@ export default function Dashboard() {
                         />
                       </div>
                     </div>
+
+                    {/* PRONTUÁRIO DINÂMICO SOAP BASEADO NA ESPECIALIDADE (Item 4) */}
+                    <div className="bg-bg-ice p-4 rounded-2xl border border-gray-200 space-y-3">
+                      <p className="text-xs font-black text-primary-blue uppercase tracking-wide">Prontuário SOAP Adaptado — {docSpecialty || 'CLÍNICO GERAL'}</p>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" placeholder="S — Queixa principal / Subjetivo" className="bg-white border rounded-xl p-2 text-xs outline-none" />
+                        
+                        {/* Objetivo adaptado por especialidade */}
+                        {docSpecialty.toLowerCase().includes('pediatra') ? (
+                          <input type="text" placeholder="O — Peso (kg) / Altura / PC" className="bg-white border rounded-xl p-2 text-xs outline-none" />
+                        ) : docSpecialty.toLowerCase().includes('cardio') ? (
+                          <input type="text" placeholder="O — Pressão Arterial / FC" className="bg-white border rounded-xl p-2 text-xs outline-none" />
+                        ) : docSpecialty.toLowerCase().includes('gineco') ? (
+                          <input type="text" placeholder="O — DUM / Fórmula Obstétrica" className="bg-white border rounded-xl p-2 text-xs outline-none" />
+                        ) : (
+                          <input type="text" placeholder="O — Sinais Vitais / Exame Físico" className="bg-white border rounded-xl p-2 text-xs outline-none" />
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" placeholder="A — Avaliação / CID-10" className="bg-white border rounded-xl p-2 text-xs outline-none" />
+                        <input type="text" placeholder="P — Conduta / Plano" className="bg-white border rounded-xl p-2 text-xs outline-none" />
+                      </div>
+                    </div>
                   </div>
 
+                  {/* ITENS DA PRESCRIÇÃO ATUAL */}
                   <div className="flex-1 overflow-y-auto p-6">
                      {prescriptions.length === 0 ? (
                        <div className="h-full flex flex-col items-center justify-center text-gray-300">
@@ -619,6 +769,7 @@ export default function Dashboard() {
                        </ul>
                      )}
                   </div>
+
                   <div className="p-4 border-t flex items-center justify-between bg-gray-50 shrink-0">
                     <div>
                       <button onClick={() => setShowSaveFavoriteModal(true)} disabled={prescriptions.length === 0} className="px-4 py-2.5 rounded-xl text-yellow-600 hover:bg-yellow-100 font-bold flex items-center gap-2 transition-colors disabled:opacity-50">
@@ -791,7 +942,7 @@ export default function Dashboard() {
                        value={docSpecialty} 
                        onChange={(e) => setDocSpecialty(e.target.value.toUpperCase())} 
                        className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-bold uppercase" 
-                       placeholder="Ex: MÉDICO CLÍNICO GERAL"
+                       placeholder="Ex: PEDIATRA"
                      />
                      <datalist id="specialties">
                        <option value="MÉDICO CLÍNICO GERAL" />
@@ -800,9 +951,6 @@ export default function Dashboard() {
                        <option value="GINECOLOGISTA E OBSTETRA" />
                        <option value="ORTOPEDISTA E TRAUMATOLOGISTA" />
                        <option value="PSIQUIATRA" />
-                       <option value="DERMATOLOGISTA" />
-                       <option value="ENDOCRINOLOGISTA" />
-                       <option value="CIRURGIÃO GERAL" />
                      </datalist>
                    </div>
 
