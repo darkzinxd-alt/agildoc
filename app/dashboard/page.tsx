@@ -1,15 +1,13 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Activity, User, Printer, X, Mail, CheckCircle, Save, Zap } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Activity, User, Printer, X, Mail, CheckCircle, Save, Zap, CreditCard, Star, ShieldAlert } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
-// Inicializa Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-// Banco de Medicamentos Padrão (Cache Local)
 const MEDICINES_DB = [
   { id: 'm1', n: 'Dipirona Sódica 1g', v: 'IV', f: ['6/6h', '8/8h', 'ACM'], t: 'Analgésico' },
   { id: 'm2', n: 'Dipirona Sódica 500mg', v: 'VO', f: ['6/6h', '8/8h', 'ACM'], t: 'Analgésico' },
@@ -21,7 +19,6 @@ const MEDICINES_DB = [
   { id: 'm33', n: 'Soro Fisiológico 0.9% 500ml', v: 'IV', f: ['Correr em 1h', 'Manutenção'], t: 'Hidratação' },
 ]
 
-// Receitas Prontas (Doenças Comuns)
 const RECEITAS_DB = [
   {
     id: 'r1', name: 'Gastroenterite Aguda', cid: 'A09', dias: '2',
@@ -53,13 +50,6 @@ const RECEITAS_DB = [
       { name: 'Ciclobenzaprina 5mg', dose: 'VO', freq: '24/24h (Ao deitar)' },
       { name: 'Dipirona Sódica 1g', dose: 'VO', freq: '6/6h (Em caso de dor forte)' }
     ]
-  },
-  {
-    id: 'r5', name: 'Infecção Urinária (Cistite)', cid: 'N39', dias: '2',
-    items: [
-      { name: 'Fosfomicina 3g (Monuril)', dose: 'VO', freq: 'Dose única (Ao deitar, bexiga vazia)' },
-      { name: 'Fenazopiridina 100mg (Pyridium)', dose: 'VO', freq: '8/8h (Por 2 dias)' }
-    ]
   }
 ]
 
@@ -69,20 +59,65 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('prescricao')
   const [dbMedicines, setDbMedicines] = useState<any[]>([])
   
-  // Perfil do Médico (Carimbo)
+  // Estados de Controle de Assinatura e Perfil
+  const [subscriptionStatus, setSubscriptionStatus] = useState('trial') // 'trial' ou 'active'
+  const [timeLeftText, setTimeLeftText] = useState('Carregando...')
+  const [isExpired, setIsExpired] = useState(false)
+  
   const [docName, setDocName] = useState('THIAGO FERREIRA DAMASCENO SILVA')
   const [docCRM, setDocCRM] = useState('12.52648-2')
   
   useEffect(() => {
-    async function fetchMedicines() {
-      const { data } = await supabase.from('medicines').select('*')
-      if (data) {
-        setDbMedicines(data.map((d: any) => ({
+    async function loadUserData() {
+      // Pega usuário logado no Supabase Auth
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        // Busca o perfil na tabela profiles
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) {
+          setSubscriptionStatus(profile.subscription_status)
+          
+          // Calcula tempo restante do trial
+          const trialEnd = new Date(profile.trial_ends_at).getTime()
+          const now = new Date().getTime()
+          const diffHours = Math.floor((trialEnd - now) / (1000 * 60 * 60))
+          
+          if (profile.subscription_status === 'active') {
+            setTimeLeftText('Plano PRO Ativo')
+            setIsExpired(false)
+          } else if (diffHours <= 0) {
+            setIsExpired(true)
+            setTimeLeftText('Período de teste encerrado')
+          } else {
+            const dias = Math.floor(diffHours / 24)
+            const horas = diffHours % 24
+            setTimeLeftText(`${dias} dias e ${horas} horas restantes`)
+            if (dias <= 7) setIsExpired(true) // Alerta vermelho se faltar 7 dias ou menos
+          }
+        }
+      }
+
+      // Carrega medicamentos do Supabase
+      const { data: meds } = await supabase.from('medicines').select('*')
+      if (meds) {
+        setDbMedicines(meds.map((d: any) => ({
           id: d.id, n: d.name, v: d.route, f: d.frequencies, t: d.category
         })))
       }
     }
-    if (supabaseUrl !== 'https://placeholder.supabase.co') fetchMedicines()
+
+    if (supabaseUrl !== 'https://placeholder.supabase.co') {
+      loadUserData()
+    } else {
+      // Mock para testes visuais sem banco conectado
+      setTimeLeftText('2 dias e 14 horas restantes')
+    }
   }, [])
 
   const ALL_MEDICINES = [...MEDICINES_DB, ...dbMedicines]
@@ -91,22 +126,18 @@ export default function Dashboard() {
     setPrescriptions([...prescriptions, { id: Date.now() + Math.random(), name: med.n, dose: med.v, freq: freq }])
   }
 
-  const applyKit = (receita: any) => {
+  const applyReceita = (receita: any) => {
     const newItems = receita.items.map((item: any, idx: number) => ({
       id: Date.now() + idx, name: item.name, dose: item.dose, freq: item.freq
     }))
-    // Adiciona o atestado na receita
     const atestado = {
       id: Date.now() + 999, name: 'Atestado Médico', dose: 'DOC', freq: `Concedo ${receita.dias} dias de afastamento (CID: ${receita.cid})`
     }
     setPrescriptions([...prescriptions, ...newItems, atestado])
   }
 
-  const handlePrint = () => {
-    window.print()
-  }
+  const handlePrint = () => window.print()
 
-  // Componente Reutilizável da Via de Impressão
   const ReceituarioVia = ({ titulo }: { titulo: string }) => (
     <div className="w-1/2 h-full flex flex-col p-8 relative">
       <div className="flex justify-between items-start mb-8 border-b-2 border-primary-blue pb-4">
@@ -116,12 +147,10 @@ export default function Dashboard() {
           <p className="text-sm">Uso Interno/Externo</p>
         </div>
       </div>
-      
       <div className="flex gap-4 mb-8 text-sm text-primary-blue font-medium bg-gray-50 p-3 rounded-lg">
         <span>Paciente: ___________________________________</span>
         <span>Data: ___/___/20__</span>
       </div>
-
       <ul className="flex-1 space-y-6">
         {prescriptions.map((p, index) => (
           <li key={p.id} className="flex gap-4">
@@ -137,8 +166,6 @@ export default function Dashboard() {
           </li>
         ))}
       </ul>
-
-      {/* CARIMBO DO MÉDICO CENTRALIZADO NO RODAPÉ */}
       <div className="mt-auto pt-8 border-t border-gray-300 flex flex-col items-center justify-center text-primary-blue">
         <div className="w-64 border-b border-primary-blue mb-2"></div>
         <p className="font-bold text-lg uppercase tracking-wide">{docName}</p>
@@ -157,15 +184,25 @@ export default function Dashboard() {
         }
       `}} />
 
-      {/* 🟢 TELA DE IMPRESSÃO (Oculta na tela, visível no Ctrl+P) */}
       <div className="hidden print:flex w-full h-screen bg-white text-black font-sans">
         <ReceituarioVia titulo="1ª VIA - PACIENTE" />
         <div className="w-px bg-dashed border-r-2 border-dashed border-gray-300 h-[90%] my-auto"></div>
         <ReceituarioVia titulo="2ª VIA - FARMÁCIA" />
       </div>
 
-      {/* 🟢 APLICATIVO WEB (Visível na tela, oculto no Ctrl+P) */}
       <div className="print:hidden h-screen flex flex-col bg-bg-ice overflow-hidden font-sans text-primary-blue">
+        
+        {/* Banner Superior com Alerta Dinâmico de Vencimento */}
+        <div className={`text-white text-xs md:text-sm py-2 px-6 flex justify-between items-center shadow-md z-50 transition-colors ${isExpired ? 'bg-red-600 animate-pulse' : 'bg-primary-blue'}`}>
+          <span className="flex items-center gap-2 font-medium">
+            <Clock size={16} className={isExpired ? 'text-white' : 'text-action-mint'} /> 
+            {isExpired ? '⚠️ Seu período de testes ou plano expirou!' : 'Status do Acesso:'} <span className="font-bold underline">{timeLeftText}</span>
+          </span>
+          <button onClick={() => setActiveTab('planos')} className="bg-action-mint text-primary-blue font-bold px-4 py-1.5 rounded-full hover:bg-white transition-colors active:scale-95 shadow-sm">
+            Ver Planos & Renovar
+          </button>
+        </div>
+
         <div className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-40">
           <Logo className="h-8" />
           <div className="flex items-center gap-4">
@@ -183,6 +220,9 @@ export default function Dashboard() {
                 <li onClick={() => setActiveTab('receitas')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'receitas' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <Zap size={20} className={activeTab === 'receitas' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Receitas Prontas</span>
                 </li>
+                <li onClick={() => setActiveTab('planos')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'planos' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <CreditCard size={20} className={activeTab === 'planos' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Planos e Assinatura</span>
+                </li>
                 <li onClick={() => setActiveTab('configuracoes')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'configuracoes' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <Settings size={20} className={activeTab === 'configuracoes' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Perfil / Carimbo</span>
                 </li>
@@ -191,11 +231,25 @@ export default function Dashboard() {
           </aside>
 
           <main className="flex-1 flex flex-col p-4 md:p-6 gap-6 overflow-hidden relative">
+            
+            {/* PAYWALL BLOQUEANTE: Se o trial acabou e ele não é active, exibe a tela de planos obrigatória */}
+            {isExpired && activeTab !== 'planos' && activeTab !== 'configuracoes' ? (
+              <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center">
+                <ShieldAlert size={64} className="text-red-500 mb-4 animate-bounce" />
+                <h2 className="text-3xl font-extrabold text-primary-blue mb-2">Seu período de testes expirou</h2>
+                <p className="text-gray-500 max-w-md mb-8">Para continuar emitindo prescrições rápidas e seguras nos seus plantões, escolha um plano abaixo para reativar seu acesso instantaneamente.</p>
+                <button onClick={() => setActiveTab('planos')} className="bg-action-mint text-primary-blue font-extrabold text-lg px-8 py-4 rounded-2xl shadow-xl hover:bg-[#00c07d] transition-all">
+                  Escolher Meu Plano Agora
+                </button>
+              </div>
+            ) : null}
+
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight">
                   {activeTab === 'prescricao' && 'Pronto Atendimento'}
                   {activeTab === 'receitas' && 'Protocolos e Receitas Prontas'}
+                  {activeTab === 'planos' && 'Renovação e Planos de Assinatura'}
                   {activeTab === 'configuracoes' && 'Configuração do Carimbo'}
                 </h1>
               </div>
@@ -224,7 +278,6 @@ export default function Dashboard() {
                   </div>
                 </section>
                 
-                {/* Visualizador da Receita na Tela */}
                 <section className="flex-[1.2] bg-white rounded-3xl shadow-xl flex flex-col relative overflow-hidden">
                   <div className="flex-1 overflow-y-auto p-6">
                      {prescriptions.length === 0 ? (
@@ -257,7 +310,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Nova Aba de Receitas Prontas */}
             {activeTab === 'receitas' && (
               <div className="flex-1 bg-white rounded-3xl p-6 overflow-y-auto">
                 <div className="grid md:grid-cols-2 gap-6">
@@ -268,7 +320,7 @@ export default function Dashboard() {
                           <h3 className="font-bold text-lg text-primary-blue">{receita.name}</h3>
                           <p className="text-sm text-gray-500">Sugestão: Atestado de {receita.dias} dias (CID {receita.cid})</p>
                         </div>
-                        <button onClick={() => {applyKit(receita); setActiveTab('prescricao')}} className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-[#111e38]">
+                        <button onClick={() => {applyReceita(receita); setActiveTab('prescricao')}} className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-[#111e38]">
                           Aplicar Receita
                         </button>
                       </div>
@@ -279,6 +331,58 @@ export default function Dashboard() {
                       </ul>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* ABA DE PLANOS E PREÇOS (Kiwify Link) */}
+            {activeTab === 'planos' && (
+              <div className="flex-1 bg-white rounded-3xl p-8 overflow-y-auto text-center">
+                <h2 className="text-3xl font-black text-primary-blue mb-4">Escolha o seu plano de renovação</h2>
+                <p className="text-gray-500 mb-10 max-w-xl mx-auto">Mantenha seu acesso contínuo aos prontuários e receitas rápidas no plantão.</p>
+                
+                <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto text-left">
+                  
+                  {/* Mensal */}
+                  <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="font-bold text-lg text-primary-blue mb-1">Plano Mensal</h3>
+                      <p className="text-sm text-gray-400 mb-6">Renovação mês a mês.</p>
+                      <div className="text-3xl font-black text-primary-blue mb-6">R$ 47,90 <span className="text-xs font-normal text-gray-400">/mês</span></div>
+                    </div>
+                    {/* COLE AQUI O LINK DE CHECKOUT DA KIWIFY DO PLANO MENSAL */}
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">
+                      Assinar Mensal
+                    </a>
+                  </div>
+
+                  {/* Trimestral (Destaque) */}
+                  <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between relative transform md:-translate-y-2">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-action-mint text-primary-blue font-bold text-xs px-3 py-1 rounded-full">MAIS POPULAR</div>
+                    <div>
+                      <h3 className="font-bold text-lg mb-1">Plano Trimestral</h3>
+                      <p className="text-sm text-white/60 mb-6">Economia para o seu plantão.</p>
+                      <div className="text-3xl font-black text-action-mint mb-6">R$ 119,90 <span className="text-xs font-normal text-white/60">/tri</span></div>
+                    </div>
+                    {/* COLE AQUI O LINK DE CHECKOUT DA KIWIFY DO PLANO TRIMESTRAL */}
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md">
+                      Assinar Trimestral
+                    </a>
+                  </div>
+
+                  {/* Anual */}
+                  <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="font-bold text-lg text-primary-blue mb-1">Plano Anual</h3>
+                      <p className="text-sm text-gray-400 mb-6">Máximo desconto (2 meses grátis).</p>
+                      <div className="text-3xl font-black text-primary-blue mb-6">R$ 347,90 <span className="text-xs font-normal text-gray-400">/ano</span></div>
+                    </div>
+                    {/* COLE AQUI O LINK DE CHECKOUT DA KIWIFY DO PLANO ANUAL */}
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-ANUAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">
+                      Assinar Anual
+                    </a>
+                  </div>
+
                 </div>
               </div>
             )}
