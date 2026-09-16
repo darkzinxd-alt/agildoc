@@ -351,7 +351,7 @@ export default function Dashboard() {
                       <div className="text-3xl font-black text-primary-blue mb-6">R$ 47,90 <span className="text-xs font-normal text-gray-400">/mês</span></div>
                     </div>
                     {/* COLE AQUI O LINK DE CHECKOUT DA KIWIFY DO PLANO MENSAL */}
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">
+                    <a href="https://pay.kiwify.com.br/IAeHojo" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">
                       Assinar Mensal
                     </a>
                   </div>
@@ -365,7 +365,7 @@ export default function Dashboard() {
                       <div className="text-3xl font-black text-action-mint mb-6">R$ 119,90 <span className="text-xs font-normal text-white/60">/tri</span></div>
                     </div>
                     {/* COLE AQUI O LINK DE CHECKOUT DA KIWIFY DO PLANO TRIMESTRAL */}
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md">
+                    <a href="https://pay.kiwify.com.br/dYkDsYP" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md">
                       Assinar Trimestral
                     </a>
                   </div>
@@ -378,7 +378,7 @@ export default function Dashboard() {
                       <div className="text-3xl font-black text-primary-blue mb-6">R$ 347,90 <span className="text-xs font-normal text-gray-400">/ano</span></div>
                     </div>
                     {/* COLE AQUI O LINK DE CHECKOUT DA KIWIFY DO PLANO ANUAL */}
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-ANUAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">
+                    <a href="https://pay.kiwify.com.br/43njVfO" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">
                       Assinar Anual
                     </a>
                   </div>
