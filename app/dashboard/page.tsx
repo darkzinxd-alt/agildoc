@@ -89,29 +89,23 @@ export default function Dashboard() {
   const [favoriteName, setFavoriteName] = useState('')
   const [isSavingFavorite, setIsSavingFavorite] = useState(false)
 
-  // --- CONTROLE DE INATIVIDADE (Logout Automático após 15 minutos) ---
+  // Inatividade (15 min)
   useEffect(() => {
     let inactivityTimer: NodeJS.Timeout
-
     const logoutDueToInactivity = async () => {
       await supabase.auth.signOut()
       alert('Sua sessão expirou por inatividade por motivos de segurança.')
       window.location.href = '/' 
     }
-
     const resetTimer = () => {
       clearTimeout(inactivityTimer)
-      // 15 minutos de inatividade
       inactivityTimer = setTimeout(logoutDueToInactivity, 15 * 60 * 1000) 
     }
-
     window.addEventListener('mousemove', resetTimer)
     window.addEventListener('keypress', resetTimer)
     window.addEventListener('click', resetTimer)
     window.addEventListener('scroll', resetTimer)
-
     resetTimer()
-
     return () => {
       clearTimeout(inactivityTimer)
       window.removeEventListener('mousemove', resetTimer)
@@ -158,8 +152,12 @@ export default function Dashboard() {
             } else {
               const dias = Math.floor(diffHours / 24)
               const horas = diffHours % 24
-              setTimeLeftText(`${dias} dias e ${horas} horas restantes`)
-              if (dias <= 7) setIsExpired(true)
+              if (dias > 0) {
+                setTimeLeftText(`${dias} dia(s) e ${horas}h restantes de teste`)
+              } else {
+                setTimeLeftText(`${horas} horas restantes de teste`)
+              }
+              if (diffHours <= 0) setIsExpired(true)
             }
           } else {
              setTimeLeftText('Configurando perfil...')
@@ -243,6 +241,8 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
+    localStorage.clear()
+    sessionStorage.clear()
     window.location.href = '/' 
   }
 
@@ -458,10 +458,11 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Barra de Status do Acesso / Contador de Teste */}
         <div className={`text-white text-xs md:text-sm py-2 px-6 flex justify-between items-center shadow-md z-40 transition-colors ${isExpired ? 'bg-red-600 animate-pulse' : 'bg-primary-blue'}`}>
           <span className="flex items-center gap-2 font-medium">
             <Clock size={16} className={isExpired ? 'text-white' : 'text-action-mint'} /> 
-            {isExpired ? '⚠️ Seu período de testes ou plano expirou!' : 'Status do Acesso:'} <span className="font-bold underline">{timeLeftText}</span>
+            {isExpired ? '⚠️ Seu período de testes de 3 dias expirou!' : 'Status do Acesso:'} <span className="font-bold underline">{timeLeftText}</span>
           </span>
           <button onClick={() => setActiveTab('planos')} className="bg-action-mint text-primary-blue font-bold px-4 py-1.5 rounded-full hover:bg-white transition-colors active:scale-95 shadow-sm">
             Ver Planos & Renovar
@@ -514,7 +515,7 @@ export default function Dashboard() {
             {isExpired && activeTab !== 'planos' && activeTab !== 'configuracoes' ? (
               <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
                 <ShieldAlert size={64} className="text-red-500 mb-4 animate-bounce" />
-                <h2 className="text-3xl font-extrabold text-primary-blue mb-2">Seu período de testes expirou</h2>
+                <h2 className="text-3xl font-extrabold text-primary-blue mb-2">Seu período de testes de 3 dias expirou</h2>
                 <p className="text-gray-500 max-w-md mb-8">Para continuar emitindo prescrições rápidas e seguras nos seus plantões, escolha um plano abaixo para reativar seu acesso instantaneamente.</p>
                 <button onClick={() => setActiveTab('planos')} className="bg-action-mint text-primary-blue font-extrabold text-lg px-8 py-4 rounded-2xl shadow-xl hover:bg-[#00c07d] transition-all">
                   Escolher Meu Plano Agora
@@ -795,7 +796,7 @@ export default function Dashboard() {
                    </div>
 
                    <div className="pt-6 border-t border-gray-100 flex items-center gap-4">
-                     <button onClick={handleSaveProfile} className="bg-action-mint text-primary-blue font-extrabold px-8 py-3 rounded-xl shadow-md hover:bg-[#00c07d] transition-colors flex items-center gap-2">
+                     <button onClick={handleSaveProfile} className="bg-action-mint text-primary-blue font-extrabold px8 py-3 rounded-xl shadow-md hover:bg-[#00c07d] transition-colors flex items-center gap-2">
                        <Save size={20} /> Salvar Configurações
                      </button>
                      {isSaved && <span className="text-action-mint font-bold flex items-center gap-1 animate-pulse"><CheckCircle size={18} /> Salvo com sucesso!</span>}
