@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Activity, User, Printer, X, Mail, CheckCircle, Save, Zap, CreditCard, ShieldAlert } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
@@ -59,7 +59,6 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('prescricao')
   const [dbMedicines, setDbMedicines] = useState<any[]>([])
   
-  // Novos Estados: Paciente e Data
   const [patientName, setPatientName] = useState('')
   const [prescriptionDate, setPrescriptionDate] = useState('')
 
@@ -67,14 +66,17 @@ export default function Dashboard() {
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
   const [isExpired, setIsExpired] = useState(false)
   
-  // Estados do Carimbo
   const [docName, setDocName] = useState('THIAGO FERREIRA DAMASCENO SILVA')
   const [docCRM, setDocCRM] = useState('1252648')
   const [docUF, setDocUF] = useState('RJ')
   const [docSpecialty, setDocSpecialty] = useState('MÉDICO CLÍNICO GERAL')
   const [isSaved, setIsSaved] = useState(false)
+
+  // Estados para o Envio de E-mail
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [patientEmail, setPatientEmail] = useState('')
+  const [isSending, setIsSending] = useState(false)
   
-// 1. Mantém os dados do Carimbo salvos no navegador
   useEffect(() => {
     const savedName = localStorage.getItem('agildoc_name')
     const savedCRM = localStorage.getItem('agildoc_crm')
@@ -87,7 +89,6 @@ export default function Dashboard() {
     if (savedSpecialty) setDocSpecialty(savedSpecialty)
   }, [])
   
-  // 2. O NOVO bloco de Autenticação e Banco de Dados (Corrige o "Carregando...")
   useEffect(() => {
     async function loadUserData() {
       try {
@@ -118,7 +119,6 @@ export default function Dashboard() {
              setTimeLeftText('Configurando perfil...')
           }
         } else {
-          // Se não houver usuário logado
           setTimeLeftText('Modo de Visualização (Não Autenticado)')
         }
 
@@ -167,7 +167,6 @@ export default function Dashboard() {
     setPrescriptions([...prescriptions, ...newItems, atestado])
   }
 
-  // Função Limpar atualizada para limpar também o paciente e a data
   const handleClear = () => {
     setPrescriptions([])
     setPatientName('')
@@ -175,6 +174,41 @@ export default function Dashboard() {
   }
 
   const handlePrint = () => window.print()
+
+  // Função para disparar o e-mail via rota de API do Resend
+  const handleSendEmail = async () => {
+    if (!patientEmail) {
+      alert('Por favor, informe o e-mail do paciente.')
+      return
+    }
+    
+    setIsSending(true)
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailTarget: patientEmail,
+          patientName: patientName,
+          prescriptions: prescriptions,
+          docName: docName
+        })
+      })
+
+      if (res.ok) {
+        alert('E-mail enviado com sucesso!')
+        setShowEmailModal(false)
+        setPatientEmail('')
+      } else {
+        alert('Erro ao enviar e-mail. Verifique se o serviço está configurado corretamente.')
+      }
+    } catch (error) {
+      console.error(error)
+      alert('Erro de conexão ao tentar enviar o e-mail.')
+    } finally {
+      setIsSending(false)
+    }
+  }
 
   const ReceituarioVia = ({ titulo }: { titulo: string }) => (
     <div className="w-1/2 h-full flex flex-col p-8 relative">
@@ -186,7 +220,6 @@ export default function Dashboard() {
         </div>
       </div>
       
-      {/* Dados do Paciente e Data Dinâmicos na Impressão */}
       <div className="flex gap-4 mb-8 text-sm text-primary-blue font-medium bg-gray-50 p-3 rounded-lg">
         <span className="flex-1">Paciente: <strong className="uppercase ml-1">{patientName || '___________________________________'}</strong></span>
         <span>Data: <strong className="ml-1">{prescriptionDate || '___/___/20__'}</strong></span>
@@ -232,9 +265,39 @@ export default function Dashboard() {
         <ReceituarioVia titulo="2ª VIA - FARMÁCIA" />
       </div>
 
-      <div className="print:hidden h-screen flex flex-col bg-bg-ice overflow-hidden font-sans text-primary-blue">
+      <div className="print:hidden h-screen flex flex-col bg-bg-ice overflow-hidden font-sans text-primary-blue relative">
         
-        <div className={`text-white text-xs md:text-sm py-2 px-6 flex justify-between items-center shadow-md z-50 transition-colors ${isExpired ? 'bg-red-600 animate-pulse' : 'bg-primary-blue'}`}>
+        {/* Modal de Envio de E-mail */}
+        {showEmailModal && (
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+              <div className="flex items-center justify-center w-12 h-12 bg-blue-50 rounded-full mb-4">
+                <Mail className="text-primary-blue" size={24} />
+              </div>
+              <h3 className="text-2xl font-black text-primary-blue mb-2">Enviar Prescrição</h3>
+              <p className="text-sm text-gray-500 mb-6">Insira o e-mail do paciente para enviar a cópia digital de forma instantânea.</p>
+              
+              <input
+                type="email"
+                placeholder="E-mail do paciente..."
+                value={patientEmail}
+                onChange={(e) => setPatientEmail(e.target.value)}
+                className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint mb-6 font-medium text-primary-blue"
+              />
+              
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowEmailModal(false)} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 font-bold transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={handleSendEmail} disabled={isSending || prescriptions.length === 0} className="px-6 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 hover:bg-[#111e38] transition-colors disabled:opacity-50">
+                  {isSending ? 'Enviando...' : 'Enviar Agora'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className={`text-white text-xs md:text-sm py-2 px-6 flex justify-between items-center shadow-md z-40 transition-colors ${isExpired ? 'bg-red-600 animate-pulse' : 'bg-primary-blue'}`}>
           <span className="flex items-center gap-2 font-medium">
             <Clock size={16} className={isExpired ? 'text-white' : 'text-action-mint'} /> 
             {isExpired ? '⚠️ Seu período de testes ou plano expirou!' : 'Status do Acesso:'} <span className="font-bold underline">{timeLeftText}</span>
@@ -244,7 +307,7 @@ export default function Dashboard() {
           </button>
         </div>
 
-        <div className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-40">
+        <div className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-30">
           <Logo className="h-8" />
           <div className="flex items-center gap-4">
             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary-blue to-[#2A416F] flex items-center justify-center text-white font-bold cursor-pointer">TF</div>
@@ -252,7 +315,7 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          <aside className="w-20 md:w-64 bg-white border-r border-gray-100 flex flex-col shadow-soft z-30">
+          <aside className="w-20 md:w-64 bg-white border-r border-gray-100 flex flex-col shadow-soft z-20">
             <nav className="flex-1 py-6 px-3">
               <ul className="space-y-2">
                 <li onClick={() => setActiveTab('prescricao')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'prescricao' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
@@ -274,7 +337,7 @@ export default function Dashboard() {
           <main className="flex-1 flex flex-col p-4 md:p-6 gap-6 overflow-hidden relative">
             
             {isExpired && activeTab !== 'planos' && activeTab !== 'configuracoes' ? (
-              <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center">
+              <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
                 <ShieldAlert size={64} className="text-red-500 mb-4 animate-bounce" />
                 <h2 className="text-3xl font-extrabold text-primary-blue mb-2">Seu período de testes expirou</h2>
                 <p className="text-gray-500 max-w-md mb-8">Para continuar emitindo prescrições rápidas e seguras nos seus plantões, escolha um plano abaixo para reativar seu acesso instantaneamente.</p>
@@ -320,7 +383,6 @@ export default function Dashboard() {
                 
                 <section className="flex-[1.2] bg-white rounded-3xl shadow-xl flex flex-col relative overflow-hidden">
                   
-                  {/* NOVOS CAMPOS: Paciente e Data no topo do visualizador da receita */}
                   <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0">
                     <div className="flex flex-col md:flex-row gap-4">
                       <div className="flex-1">
@@ -370,20 +432,16 @@ export default function Dashboard() {
                      )}
                   </div>
                   <div className="p-4 border-t flex justify-end gap-3 bg-gray-50 shrink-0">
-  <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold transition-colors">
-    Limpar
-  </button>
-  
-  {/* Botão de E-mail restaurado para configuração futura */}
-  <button className="px-5 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 shadow-md hover:bg-[#111e38] transition-colors">
-    <Mail size={16} /> Enviar por E-mail
-  </button>
-  
-  {/* Botão de Imprimir limpo e elegante */}
-  <button onClick={handlePrint} className="px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d] transition-colors">
-    <Printer size={16} /> Imprimir
-  </button>
-</div>
+                    <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold transition-colors">
+                      Limpar
+                    </button>
+                    <button onClick={() => setShowEmailModal(true)} className="px-5 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 shadow-md hover:bg-[#111e38] transition-colors">
+                      <Mail size={16} /> Enviar por E-mail
+                    </button>
+                    <button onClick={handlePrint} className="px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d] transition-colors">
+                      <Printer size={16} /> Imprimir
+                    </button>
+                  </div>
                 </section>
               </div>
             )}
