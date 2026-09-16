@@ -59,18 +59,22 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('prescricao')
   const [dbMedicines, setDbMedicines] = useState<any[]>([])
   
+  // Novos Estados: Paciente e Data
+  const [patientName, setPatientName] = useState('')
+  const [prescriptionDate, setPrescriptionDate] = useState('')
+
   const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
   const [isExpired, setIsExpired] = useState(false)
   
-  // Novos Estados do Carimbo
+  // Estados do Carimbo
   const [docName, setDocName] = useState('THIAGO FERREIRA DAMASCENO SILVA')
   const [docCRM, setDocCRM] = useState('1252648')
   const [docUF, setDocUF] = useState('RJ')
   const [docSpecialty, setDocSpecialty] = useState('MÉDICO CLÍNICO GERAL')
   const [isSaved, setIsSaved] = useState(false)
   
-  // Carrega os dados salvos do Carimbo no navegador ao iniciar
+// 1. Mantém os dados do Carimbo salvos no navegador
   useEffect(() => {
     const savedName = localStorage.getItem('agildoc_name')
     const savedCRM = localStorage.getItem('agildoc_crm')
@@ -83,48 +87,60 @@ export default function Dashboard() {
     if (savedSpecialty) setDocSpecialty(savedSpecialty)
   }, [])
   
+  // 2. O NOVO bloco de Autenticação e Banco de Dados (Corrige o "Carregando...")
   useEffect(() => {
     async function loadUserData() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-        if (profile) {
-          setSubscriptionStatus(profile.subscription_status)
-          const trialEnd = new Date(profile.trial_ends_at).getTime()
-          const now = new Date().getTime()
-          const diffHours = Math.floor((trialEnd - now) / (1000 * 60 * 60))
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
           
-          if (profile.subscription_status === 'active') {
-            setTimeLeftText('Plano PRO Ativo')
-            setIsExpired(false)
-          } else if (diffHours <= 0) {
-            setIsExpired(true)
-            setTimeLeftText('Período de teste encerrado')
+          if (profile) {
+            setSubscriptionStatus(profile.subscription_status)
+            const trialEnd = new Date(profile.trial_ends_at).getTime()
+            const now = new Date().getTime()
+            const diffHours = Math.floor((trialEnd - now) / (1000 * 60 * 60))
+            
+            if (profile.subscription_status === 'active') {
+              setTimeLeftText('Plano PRO Ativo')
+              setIsExpired(false)
+            } else if (diffHours <= 0) {
+              setIsExpired(true)
+              setTimeLeftText('Período de teste encerrado')
+            } else {
+              const dias = Math.floor(diffHours / 24)
+              const horas = diffHours % 24
+              setTimeLeftText(`${dias} dias e ${horas} horas restantes`)
+              if (dias <= 7) setIsExpired(true)
+            }
           } else {
-            const dias = Math.floor(diffHours / 24)
-            const horas = diffHours % 24
-            setTimeLeftText(`${dias} dias e ${horas} horas restantes`)
-            if (dias <= 7) setIsExpired(true)
+             setTimeLeftText('Configurando perfil...')
           }
+        } else {
+          // Se não houver usuário logado
+          setTimeLeftText('Modo de Visualização (Não Autenticado)')
         }
-      }
 
-      const { data: meds } = await supabase.from('medicines').select('*')
-      if (meds) {
-        setDbMedicines(meds.map((d: any) => ({
-          id: d.id, n: d.name, v: d.route, f: d.frequencies, t: d.category
-        })))
+        const { data: meds } = await supabase.from('medicines').select('*')
+        if (meds) {
+          setDbMedicines(meds.map((d: any) => ({
+            id: d.id, n: d.name, v: d.route, f: d.frequencies, t: d.category
+          })))
+        }
+      } catch (error) {
+        console.error("Erro ao verificar acesso:", error)
+        setTimeLeftText('Erro ao carregar status')
       }
     }
 
     if (supabaseUrl !== 'https://placeholder.supabase.co') {
       loadUserData()
     } else {
-      setTimeLeftText('2 dias e 14 horas restantes')
+      setTimeLeftText('3 dias restantes (Modo Teste)')
     }
   }, [])
 
-  // Função para salvar o carimbo
   const handleSaveProfile = () => {
     localStorage.setItem('agildoc_name', docName)
     localStorage.setItem('agildoc_crm', docCRM)
@@ -132,7 +148,7 @@ export default function Dashboard() {
     localStorage.setItem('agildoc_specialty', docSpecialty)
     
     setIsSaved(true)
-    setTimeout(() => setIsSaved(false), 3000) // Esconde a mensagem após 3 segundos
+    setTimeout(() => setIsSaved(false), 3000)
   }
 
   const ALL_MEDICINES = [...MEDICINES_DB, ...dbMedicines]
@@ -151,6 +167,13 @@ export default function Dashboard() {
     setPrescriptions([...prescriptions, ...newItems, atestado])
   }
 
+  // Função Limpar atualizada para limpar também o paciente e a data
+  const handleClear = () => {
+    setPrescriptions([])
+    setPatientName('')
+    setPrescriptionDate('')
+  }
+
   const handlePrint = () => window.print()
 
   const ReceituarioVia = ({ titulo }: { titulo: string }) => (
@@ -162,10 +185,13 @@ export default function Dashboard() {
           <p className="text-sm">Uso Interno/Externo</p>
         </div>
       </div>
+      
+      {/* Dados do Paciente e Data Dinâmicos na Impressão */}
       <div className="flex gap-4 mb-8 text-sm text-primary-blue font-medium bg-gray-50 p-3 rounded-lg">
-        <span>Paciente: ___________________________________</span>
-        <span>Data: ___/___/20__</span>
+        <span className="flex-1">Paciente: <strong className="uppercase ml-1">{patientName || '___________________________________'}</strong></span>
+        <span>Data: <strong className="ml-1">{prescriptionDate || '___/___/20__'}</strong></span>
       </div>
+
       <ul className="flex-1 space-y-6">
         {prescriptions.map((p, index) => (
           <li key={p.id} className="flex gap-4">
@@ -182,7 +208,6 @@ export default function Dashboard() {
         ))}
       </ul>
       
-      {/* CARIMBO ATUALIZADO */}
       <div className="mt-auto pt-8 border-t border-gray-300 flex flex-col items-center justify-center text-primary-blue">
         <div className="w-64 border-b border-primary-blue mb-2"></div>
         <p className="font-bold text-lg uppercase tracking-wide">{docName}</p>
@@ -294,6 +319,33 @@ export default function Dashboard() {
                 </section>
                 
                 <section className="flex-[1.2] bg-white rounded-3xl shadow-xl flex flex-col relative overflow-hidden">
+                  
+                  {/* NOVOS CAMPOS: Paciente e Data no topo do visualizador da receita */}
+                  <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0">
+                    <div className="flex flex-col md:flex-row gap-4">
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-gray-500 mb-1">NOME DO PACIENTE</label>
+                        <input 
+                          type="text" 
+                          value={patientName} 
+                          onChange={(e) => setPatientName(e.target.value)} 
+                          placeholder="Digite o nome do paciente..." 
+                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none focus:border-action-mint font-bold text-primary-blue"
+                        />
+                      </div>
+                      <div className="w-full md:w-40">
+                        <label className="block text-xs font-bold text-gray-500 mb-1">DATA</label>
+                        <input 
+                          type="text" 
+                          value={prescriptionDate} 
+                          onChange={(e) => setPrescriptionDate(e.target.value)} 
+                          placeholder="DD/MM/AAAA" 
+                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none focus:border-action-mint font-bold text-primary-blue md:text-center"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex-1 overflow-y-auto p-6">
                      {prescriptions.length === 0 ? (
                        <div className="h-full flex flex-col items-center justify-center text-gray-300">
@@ -318,7 +370,7 @@ export default function Dashboard() {
                      )}
                   </div>
                   <div className="p-4 border-t flex justify-end gap-3 bg-gray-50">
-                    <button onClick={() => setPrescriptions([])} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold">Limpar</button>
+                    <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold">Limpar</button>
                     <button onClick={handlePrint} className="px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d]"><Printer size={16} /> Imprimir (2 Vias)</button>
                   </div>
                 </section>
@@ -384,11 +436,9 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* NOVA ABA DE CONFIGURAÇÕES (PERFIL E CARIMBO) */}
             {activeTab === 'configuracoes' && (
               <div className="flex-1 bg-white rounded-3xl p-8 max-w-2xl shadow-soft">
                  <h3 className="text-xl font-bold text-primary-blue mb-6 border-b pb-4">Dados do Carimbo (Impressão)</h3>
-                 
                  <div className="space-y-6">
                    <div>
                      <label className="block text-sm font-bold text-gray-600 mb-2">Nome do Médico (Sairá no rodapé da receita)</label>
@@ -441,7 +491,6 @@ export default function Dashboard() {
                      {isSaved && <span className="text-action-mint font-bold flex items-center gap-1 animate-pulse"><CheckCircle size={18} /> Salvo com sucesso!</span>}
                    </div>
                  </div>
-
               </div>
             )}
           </main>
