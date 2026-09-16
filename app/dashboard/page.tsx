@@ -75,7 +75,6 @@ export default function Dashboard() {
   const [patientName, setPatientName] = useState('')
   const [prescriptionDate, setPrescriptionDate] = useState('')
   
-  // Estados para Filtros, Segurança, Escala de Dor e Mapa Corporal
   const [selectedSpecialtyFilter, setSelectedSpecialtyFilter] = useState('todas')
   const [selectedClassFilter, setSelectedClassFilter] = useState('todas')
   const [selectedTarjaFilter, setSelectedTarjaFilter] = useState('todas')
@@ -680,7 +679,7 @@ export default function Dashboard() {
                           {med.f.map((freq: string, i: number) => (
                             <button 
                               key={i} 
-                              onClick={() => addMedicineWithChecks(med, freq)} 
+                              onClick={() => handleAddMedicineWithChecks(med, freq)} 
                               className="bg-action-mint/10 text-action-mint px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-action-mint hover:text-white transition-colors"
                             >
                               + {freq}
