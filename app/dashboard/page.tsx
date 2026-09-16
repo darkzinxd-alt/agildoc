@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope, Sparkles, Lock, Building2 } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope, Sparkles, Lock, Building2, AlertTriangle } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
@@ -101,14 +101,14 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('prescricao')
   const [dbMedicines, setDbMedicines] = useState<any[]>([])
   
-  // Identificação Universal do Paciente
+  // Identificação Universal do Paciente e Alergias Editáveis
   const [patientName, setPatientName] = useState('')
   const [prescriptionDate, setPrescriptionDate] = useState('')
+  const [patientAllergiesInput, setPatientAllergiesInput] = useState('') // Input digitado pelo médico
   
   const [selectedSpecialtyFilter, setSelectedSpecialtyFilter] = useState('todas')
   const [selectedClassFilter, setSelectedClassFilter] = useState('todas')
   const [selectedTarjaFilter, setSelectedTarjaFilter] = useState('todas')
-  const [patientAllergies, setPatientAllergies] = useState<string[]>(['Dipirona'])
   const [drugInteractionsAlerts, setDrugInteractionsAlerts] = useState<string[]>([])
   
   // Especialistas e Histórico de Dor (Ortopedia)
@@ -265,14 +265,22 @@ export default function Dashboard() {
   }
 
   const handleAddMedicineWithChecks = (med: any, freq: string) => {
-    const isAllergic = patientAllergies.some(allergy => 
-      med.n.toLowerCase().includes(allergy.toLowerCase()) || 
-      (med.t && med.t.toLowerCase().includes(allergy.toLowerCase()))
+    // Quebra as alergias digitadas pelo médico por vírgula para verificar individualmente
+    const activeAllergies = patientAllergiesInput
+      .split(',')
+      .map(a => a.trim().toLowerCase())
+      .filter(a => a.length > 0)
+
+    const isAllergic = activeAllergies.some(allergy => 
+      med.n.toLowerCase().includes(allergy) || 
+      (med.t && med.t.toLowerCase().includes(allergy))
     )
+
     if (isAllergic) {
-      const confirmar = confirm(`⚠️ ALERTA DE ALERGIA: O paciente possui restrição registrada a "${med.n}" ou classe similar. Deseja prosseguir?`)
+      const confirmar = confirm(`⚠️ ALERTA DE ALERGIA: O paciente possui restrição registrada a "${med.n}" ou classe similar (Alergias cadastradas: ${patientAllergiesInput}). Deseja prosseguir mesmo assim?`)
       if (!confirmar) return
     }
+
     const newItems = [...prescriptions, { id: Date.now() + Math.random(), name: med.n, dose: med.v, freq: freq, class: med.t }]
     setPrescriptions(newItems)
     checkInteractions(newItems)
@@ -364,6 +372,7 @@ export default function Dashboard() {
     setPrescriptions([])
     setPatientName('')
     setPrescriptionDate('')
+    setPatientAllergiesInput('')
     setDrugInteractionsAlerts([])
     setPainLevel(null)
     setSelectedBodyPart('')
@@ -503,8 +512,15 @@ export default function Dashboard() {
 
       {/* UNIDADE DE ATENDIMENTO / HOSPITAL FIXA NO CABEÇALHO */}
       {docHospital && (
-        <div className="mb-3 text-xs font-black text-primary-blue bg-blue-50 px-3 py-1.5 rounded-lg uppercase tracking-wide border border-blue-100 flex items-center gap-2">
+        <div className="mb-2 text-xs font-black text-primary-blue bg-blue-50 px-3 py-1.5 rounded-lg uppercase tracking-wide border border-blue-100 flex items-center gap-2">
           <Building2 size={14} className="text-action-mint" /> Unidade / Hospital: {docHospital}
+        </div>
+      )}
+
+      {/* ALERGIAS REGISTRADAS NO CABEÇALHO DA RECEITA PARA ALERTA FÍSICO */}
+      {patientAllergiesInput && (
+        <div className="mb-3 text-xs font-bold text-red-700 bg-red-50 px-3 py-1.5 rounded-lg uppercase tracking-wide border border-red-200 flex items-center gap-2">
+          <AlertTriangle size={14} className="text-red-600 animate-pulse" /> Alergias Conhecidas: {patientAllergiesInput}
         </div>
       )}
 
@@ -770,6 +786,20 @@ export default function Dashboard() {
                         <label className="block text-xs font-bold text-gray-500 mb-1">DATA</label>
                         <input type="text" value={prescriptionDate} onChange={(e) => setPrescriptionDate(e.target.value)} placeholder="DD/MM/AAAA" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none font-bold text-primary-blue md:text-center" />
                       </div>
+                    </div>
+
+                    {/* CAMPO DE ALERGIAS DO PACIENTE */}
+                    <div>
+                      <label className="block text-xs font-bold text-red-600 mb-1 flex items-center gap-1">
+                        <AlertTriangle size={14} /> ALERGIAS DO PACIENTE (SEPARADAS POR VÍRGULA)
+                      </label>
+                      <input 
+                        type="text" 
+                        value={patientAllergiesInput} 
+                        onChange={(e) => setPatientAllergiesInput(e.target.value)} 
+                        placeholder="Ex: Dipirona, Penicilina, AINEs..." 
+                        className="w-full bg-red-50/50 border border-red-200 rounded-xl px-4 py-2 outline-none font-bold text-red-700 text-sm focus:border-red-400" 
+                      />
                     </div>
 
                     <div className="bg-bg-ice p-3 rounded-xl border border-gray-200 space-y-2">
