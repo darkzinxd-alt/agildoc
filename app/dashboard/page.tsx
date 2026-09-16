@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Activity, User, Printer, X, Mail, CheckCircle, Save, Zap, CreditCard, Star, ShieldAlert } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Activity, User, Printer, X, Mail, CheckCircle, Save, Zap, CreditCard, ShieldAlert } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
@@ -59,31 +59,37 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('prescricao')
   const [dbMedicines, setDbMedicines] = useState<any[]>([])
   
-  // Estados de Controle de Assinatura e Perfil
-  const [subscriptionStatus, setSubscriptionStatus] = useState('trial') // 'trial' ou 'active'
+  const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
   const [isExpired, setIsExpired] = useState(false)
   
+  // Novos Estados do Carimbo
   const [docName, setDocName] = useState('THIAGO FERREIRA DAMASCENO SILVA')
-  const [docCRM, setDocCRM] = useState('12.52648-2')
+  const [docCRM, setDocCRM] = useState('1252648')
+  const [docUF, setDocUF] = useState('RJ')
+  const [docSpecialty, setDocSpecialty] = useState('MÉDICO CLÍNICO GERAL')
+  const [isSaved, setIsSaved] = useState(false)
+  
+  // Carrega os dados salvos do Carimbo no navegador ao iniciar
+  useEffect(() => {
+    const savedName = localStorage.getItem('agildoc_name')
+    const savedCRM = localStorage.getItem('agildoc_crm')
+    const savedUF = localStorage.getItem('agildoc_uf')
+    const savedSpecialty = localStorage.getItem('agildoc_specialty')
+    
+    if (savedName) setDocName(savedName)
+    if (savedCRM) setDocCRM(savedCRM)
+    if (savedUF) setDocUF(savedUF)
+    if (savedSpecialty) setDocSpecialty(savedSpecialty)
+  }, [])
   
   useEffect(() => {
     async function loadUserData() {
-      // Pega usuário logado no Supabase Auth
       const { data: { user } } = await supabase.auth.getUser()
-      
       if (user) {
-        // Busca o perfil na tabela profiles
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
         if (profile) {
           setSubscriptionStatus(profile.subscription_status)
-          
-          // Calcula tempo restante do trial
           const trialEnd = new Date(profile.trial_ends_at).getTime()
           const now = new Date().getTime()
           const diffHours = Math.floor((trialEnd - now) / (1000 * 60 * 60))
@@ -98,12 +104,11 @@ export default function Dashboard() {
             const dias = Math.floor(diffHours / 24)
             const horas = diffHours % 24
             setTimeLeftText(`${dias} dias e ${horas} horas restantes`)
-            if (dias <= 7) setIsExpired(true) // Alerta vermelho se faltar 7 dias ou menos
+            if (dias <= 7) setIsExpired(true)
           }
         }
       }
 
-      // Carrega medicamentos do Supabase
       const { data: meds } = await supabase.from('medicines').select('*')
       if (meds) {
         setDbMedicines(meds.map((d: any) => ({
@@ -115,10 +120,20 @@ export default function Dashboard() {
     if (supabaseUrl !== 'https://placeholder.supabase.co') {
       loadUserData()
     } else {
-      // Mock para testes visuais sem banco conectado
       setTimeLeftText('2 dias e 14 horas restantes')
     }
   }, [])
+
+  // Função para salvar o carimbo
+  const handleSaveProfile = () => {
+    localStorage.setItem('agildoc_name', docName)
+    localStorage.setItem('agildoc_crm', docCRM)
+    localStorage.setItem('agildoc_uf', docUF)
+    localStorage.setItem('agildoc_specialty', docSpecialty)
+    
+    setIsSaved(true)
+    setTimeout(() => setIsSaved(false), 3000) // Esconde a mensagem após 3 segundos
+  }
 
   const ALL_MEDICINES = [...MEDICINES_DB, ...dbMedicines]
 
@@ -166,11 +181,13 @@ export default function Dashboard() {
           </li>
         ))}
       </ul>
+      
+      {/* CARIMBO ATUALIZADO */}
       <div className="mt-auto pt-8 border-t border-gray-300 flex flex-col items-center justify-center text-primary-blue">
         <div className="w-64 border-b border-primary-blue mb-2"></div>
         <p className="font-bold text-lg uppercase tracking-wide">{docName}</p>
-        <p className="font-medium text-sm">CRM: {docCRM}</p>
-        <p className="font-bold text-sm tracking-widest mt-1">MÉDICO</p>
+        <p className="font-medium text-sm">CRM-{docUF} {docCRM}</p>
+        <p className="font-bold text-sm tracking-widest mt-1 uppercase">{docSpecialty}</p>
       </div>
     </div>
   )
@@ -192,7 +209,6 @@ export default function Dashboard() {
 
       <div className="print:hidden h-screen flex flex-col bg-bg-ice overflow-hidden font-sans text-primary-blue">
         
-        {/* Banner Superior com Alerta Dinâmico de Vencimento */}
         <div className={`text-white text-xs md:text-sm py-2 px-6 flex justify-between items-center shadow-md z-50 transition-colors ${isExpired ? 'bg-red-600 animate-pulse' : 'bg-primary-blue'}`}>
           <span className="flex items-center gap-2 font-medium">
             <Clock size={16} className={isExpired ? 'text-white' : 'text-action-mint'} /> 
@@ -232,7 +248,6 @@ export default function Dashboard() {
 
           <main className="flex-1 flex flex-col p-4 md:p-6 gap-6 overflow-hidden relative">
             
-            {/* PAYWALL BLOQUEANTE: Se o trial acabou e ele não é active, exibe a tela de planos obrigatória */}
             {isExpired && activeTab !== 'planos' && activeTab !== 'configuracoes' ? (
               <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center">
                 <ShieldAlert size={64} className="text-red-500 mb-4 animate-bounce" />
@@ -335,28 +350,19 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ABA DE PLANOS E PREÇOS (Kiwify Link) */}
             {activeTab === 'planos' && (
               <div className="flex-1 bg-white rounded-3xl p-8 overflow-y-auto text-center">
                 <h2 className="text-3xl font-black text-primary-blue mb-4">Escolha o seu plano de renovação</h2>
                 <p className="text-gray-500 mb-10 max-w-xl mx-auto">Mantenha seu acesso contínuo aos prontuários e receitas rápidas no plantão.</p>
-                
                 <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto text-left">
-                  
-                  {/* Mensal */}
                   <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between">
                     <div>
                       <h3 className="font-bold text-lg text-primary-blue mb-1">Plano Mensal</h3>
                       <p className="text-sm text-gray-400 mb-6">Renovação mês a mês.</p>
                       <div className="text-3xl font-black text-primary-blue mb-6">R$ 47,90 <span className="text-xs font-normal text-gray-400">/mês</span></div>
                     </div>
-                    {/* COLE AQUI O LINK DE CHECKOUT DA KIWIFY DO PLANO MENSAL */}
-                    <a href="https://pay.kiwify.com.br/IAeHojo" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">
-                      Assinar Mensal
-                    </a>
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">Assinar Mensal</a>
                   </div>
-
-                  {/* Trimestral (Destaque) */}
                   <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between relative transform md:-translate-y-2">
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-action-mint text-primary-blue font-bold text-xs px-3 py-1 rounded-full">MAIS POPULAR</div>
                     <div>
@@ -364,42 +370,78 @@ export default function Dashboard() {
                       <p className="text-sm text-white/60 mb-6">Economia para o seu plantão.</p>
                       <div className="text-3xl font-black text-action-mint mb-6">R$ 119,90 <span className="text-xs font-normal text-white/60">/tri</span></div>
                     </div>
-                    {/* COLE AQUI O LINK DE CHECKOUT DA KIWIFY DO PLANO TRIMESTRAL */}
-                    <a href="https://pay.kiwify.com.br/dYkDsYP" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md">
-                      Assinar Trimestral
-                    </a>
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md">Assinar Trimestral</a>
                   </div>
-
-                  {/* Anual */}
                   <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between">
                     <div>
                       <h3 className="font-bold text-lg text-primary-blue mb-1">Plano Anual</h3>
                       <p className="text-sm text-gray-400 mb-6">Máximo desconto (2 meses grátis).</p>
                       <div className="text-3xl font-black text-primary-blue mb-6">R$ 347,90 <span className="text-xs font-normal text-gray-400">/ano</span></div>
                     </div>
-                    {/* COLE AQUI O LINK DE CHECKOUT DA KIWIFY DO PLANO ANUAL */}
-                    <a href="https://pay.kiwify.com.br/43njVfO" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">
-                      Assinar Anual
-                    </a>
+                    <a href="https://pay.kiwify.com.br/SEU-LINK-ANUAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">Assinar Anual</a>
                   </div>
-
                 </div>
               </div>
             )}
 
+            {/* NOVA ABA DE CONFIGURAÇÕES (PERFIL E CARIMBO) */}
             {activeTab === 'configuracoes' && (
-              <div className="flex-1 bg-white rounded-3xl p-8 max-w-2xl">
+              <div className="flex-1 bg-white rounded-3xl p-8 max-w-2xl shadow-soft">
                  <h3 className="text-xl font-bold text-primary-blue mb-6 border-b pb-4">Dados do Carimbo (Impressão)</h3>
+                 
                  <div className="space-y-6">
                    <div>
                      <label className="block text-sm font-bold text-gray-600 mb-2">Nome do Médico (Sairá no rodapé da receita)</label>
-                     <input type="text" value={docName} onChange={(e) => setDocName(e.target.value.toUpperCase())} className="w-full bg-bg-ice border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-bold uppercase" />
+                     <input type="text" value={docName} onChange={(e) => setDocName(e.target.value.toUpperCase())} className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-bold uppercase" />
                    </div>
+                   
+                   <div className="grid grid-cols-2 gap-4">
+                     <div>
+                       <label className="block text-sm font-bold text-gray-600 mb-2">Número do CRM</label>
+                       <input type="text" value={docCRM} onChange={(e) => setDocCRM(e.target.value)} className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-medium" placeholder="Ex: 123456" />
+                     </div>
+                     <div>
+                       <label className="block text-sm font-bold text-gray-600 mb-2">Estado (UF)</label>
+                       <select value={docUF} onChange={(e) => setDocUF(e.target.value)} className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-medium cursor-pointer">
+                         {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
+                           <option key={uf} value={uf}>{uf}</option>
+                         ))}
+                       </select>
+                     </div>
+                   </div>
+
                    <div>
-                     <label className="block text-sm font-bold text-gray-600 mb-2">CRM e Estado</label>
-                     <input type="text" value={docCRM} onChange={(e) => setDocCRM(e.target.value)} className="w-full bg-bg-ice border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-medium" />
+                     <label className="block text-sm font-bold text-gray-600 mb-2">Especialidade (Sairá abaixo do CRM)</label>
+                     <input 
+                       type="text" 
+                       list="specialties" 
+                       value={docSpecialty} 
+                       onChange={(e) => setDocSpecialty(e.target.value.toUpperCase())} 
+                       className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-bold uppercase" 
+                       placeholder="Ex: MÉDICO CLÍNICO GERAL"
+                     />
+                     <datalist id="specialties">
+                       <option value="MÉDICO CLÍNICO GERAL" />
+                       <option value="PEDIATRA" />
+                       <option value="CARDIOLOGISTA" />
+                       <option value="GINECOLOGISTA E OBSTETRA" />
+                       <option value="ORTOPEDISTA E TRAUMATOLOGISTA" />
+                       <option value="PSIQUIATRA" />
+                       <option value="DERMATOLOGISTA" />
+                       <option value="ENDOCRINOLOGISTA" />
+                       <option value="CIRURGIÃO GERAL" />
+                     </datalist>
+                     <p className="text-xs text-gray-400 mt-2">Selecione uma especialidade da lista ou digite livremente caso não encontre a sua.</p>
+                   </div>
+
+                   <div className="pt-6 border-t border-gray-100 flex items-center gap-4">
+                     <button onClick={handleSaveProfile} className="bg-action-mint text-primary-blue font-extrabold px-8 py-3 rounded-xl shadow-md hover:bg-[#00c07d] transition-colors flex items-center gap-2">
+                       <Save size={20} /> Salvar Configurações
+                     </button>
+                     {isSaved && <span className="text-action-mint font-bold flex items-center gap-1 animate-pulse"><CheckCircle size={18} /> Salvo com sucesso!</span>}
                    </div>
                  </div>
+
               </div>
             )}
           </main>
