@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
@@ -42,21 +42,6 @@ const RECEITAS_DB = [
       { name: 'Loratadina 10mg', dose: 'VO', freq: '24/24h (À noite)' },
       { name: 'Soro Fisiológico 0.9%', dose: 'Nasal', freq: 'Lavagem nasal 4x ao dia' }
     ]
-  },
-  {
-    id: 'r3', name: 'Conjuntivite', cid: 'H10', dias: '3',
-    items: [
-      { name: 'Tobramicina (Colírio)', dose: 'Ocular', freq: '1 gota em cada olho 6/6h (7 dias)' },
-      { name: 'Soro Fisiológico (Gelado)', dose: 'Local', freq: 'Compressas geladas 4x ao dia' }
-    ]
-  },
-  {
-    id: 'r4', name: 'Lombalgia Aguda', cid: 'M54', dias: '2',
-    items: [
-      { name: 'Diclofenaco de Sódio 50mg', dose: 'VO', freq: '8/8h (Após refeição)' },
-      { name: 'Ciclobenzaprina 5mg', dose: 'VO', freq: '24/24h (Ao deitar)' },
-      { name: 'Dipirona Sódica 1g', dose: 'VO', freq: '6/6h (Em caso de dor forte)' }
-    ]
   }
 ]
 
@@ -65,51 +50,6 @@ const KNOWN_INTERACTIONS = [
   { drugA: 'Ceftriaxona', drugB: 'Soro Fisiológico com Cálcio', msg: 'Risco de precipitação fatal de sais de cálcio.' },
   { drugA: 'Fluoxetina', drugB: 'Tramadol', msg: 'Risco severo de Síndrome Serotoninérgica.' }
 ]
-
-// ===== ESCALAS CLÍNICAS: PHQ-9 (Rastreio de Depressão) e GAD-7 (Rastreio de Ansiedade) =====
-const PHQ9_QUESTIONS = [
-  'Pouco interesse ou prazer em fazer as coisas',
-  'Sentir-se para baixo, deprimido(a) ou sem esperança',
-  'Dificuldade para pegar no sono, continuar dormindo ou dormir demais',
-  'Sentir-se cansado(a) ou com pouca energia',
-  'Falta de apetite ou comer demais',
-  'Sentir-se mal consigo mesmo(a) — ou sentir que é um fracasso ou que decepcionou a si mesmo(a) ou a família',
-  'Dificuldade para se concentrar em tarefas, como ler ou assistir TV',
-  'Lentidão para se mover ou falar (perceptível a outras pessoas) — ou o oposto, estar tão agitado(a) que se movimenta muito mais que o habitual',
-  'Pensamentos de que seria melhor estar morto(a) ou de se machucar de alguma forma'
-]
-
-const GAD7_QUESTIONS = [
-  'Sentir-se nervoso(a), ansioso(a) ou muito tenso(a)',
-  'Não conseguir parar ou controlar as preocupações',
-  'Preocupar-se demais com diversas coisas',
-  'Dificuldade para relaxar',
-  'Ficar tão agitado(a) que é difícil permanecer parado(a)',
-  'Ficar facilmente irritado(a) ou impaciente',
-  'Sentir medo, como se algo terrível fosse acontecer'
-]
-
-const SCALE_OPTIONS = [
-  { value: 0, label: 'Nunca' },
-  { value: 1, label: 'Vários dias' },
-  { value: 2, label: 'Mais da metade dos dias' },
-  { value: 3, label: 'Quase todos os dias' }
-]
-
-function getPHQ9Severity(score: number) {
-  if (score <= 4) return { label: 'Mínimo', color: 'bg-green-100 text-green-700' }
-  if (score <= 9) return { label: 'Leve', color: 'bg-yellow-100 text-yellow-700' }
-  if (score <= 14) return { label: 'Moderado', color: 'bg-orange-100 text-orange-700' }
-  if (score <= 19) return { label: 'Moderadamente Severo', color: 'bg-red-100 text-red-700' }
-  return { label: 'Severo', color: 'bg-red-200 text-red-800' }
-}
-
-function getGAD7Severity(score: number) {
-  if (score <= 4) return { label: 'Mínimo', color: 'bg-green-100 text-green-700' }
-  if (score <= 9) return { label: 'Leve', color: 'bg-yellow-100 text-yellow-700' }
-  if (score <= 14) return { label: 'Moderado', color: 'bg-orange-100 text-orange-700' }
-  return { label: 'Severo', color: 'bg-red-200 text-red-800' }
-}
 
 export default function Dashboard() {
   const [prescriptions, setPrescriptions] = useState<any[]>([])
@@ -120,17 +60,18 @@ export default function Dashboard() {
   const [patientName, setPatientName] = useState('')
   const [prescriptionDate, setPrescriptionDate] = useState('')
   
+  // Estados de Filtros e Especialidades
   const [selectedSpecialtyFilter, setSelectedSpecialtyFilter] = useState('todas')
   const [selectedClassFilter, setSelectedClassFilter] = useState('todas')
   const [selectedTarjaFilter, setSelectedTarjaFilter] = useState('todas')
   const [patientAllergies, setPatientAllergies] = useState<string[]>(['Dipirona'])
   const [drugInteractionsAlerts, setDrugInteractionsAlerts] = useState<string[]>([])
+  
+  // Ferramentas da Aba Especialistas
+  const [activeSpecialtyTool, setActiveSpecialtyTool] = useState('ortopedia') // ortopedia, pediatria, cardiologia, ginecologia, psiquiatria
   const [painLevel, setPainLevel] = useState<number | null>(null)
   const [selectedBodyPart, setSelectedBodyPart] = useState<string>('')
-
-  // Escalas clínicas (PHQ-9 / GAD-7)
-  const [phq9Answers, setPhq9Answers] = useState<(number | null)[]>(Array(9).fill(null))
-  const [gad7Answers, setGad7Answers] = useState<(number | null)[]>(Array(7).fill(null))
+  const [bodySide, setBodySide] = useState<'frente' | 'costas'>('frente')
 
   const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
@@ -152,14 +93,6 @@ export default function Dashboard() {
   const [showSaveFavoriteModal, setShowSaveFavoriteModal] = useState(false)
   const [favoriteName, setFavoriteName] = useState('')
   const [isSavingFavorite, setIsSavingFavorite] = useState(false)
-
-  // Totais das escalas clínicas
-  const phq9AllAnswered = phq9Answers.every(a => a !== null)
-  const phq9Score = phq9Answers.reduce((sum: number, v) => sum + (v ?? 0), 0)
-  const phq9SelfHarmFlag = (phq9Answers[8] ?? 0) > 0
-  const gad7AllAnswered = gad7Answers.every(a => a !== null)
-  const gad7Score = gad7Answers.reduce((sum: number, v) => sum + (v ?? 0), 0)
-  const isPsychSpecialty = docSpecialty.toLowerCase().includes('psiqu') || docSpecialty.toLowerCase().includes('psicolog')
 
   // Inatividade (15 min)
   useEffect(() => {
@@ -191,10 +124,8 @@ export default function Dashboard() {
     async function loadUserData() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        
         if (user) {
           setUserEmail(user.email || '')
-          
           const userId = user.id
           const savedName = localStorage.getItem(`agildoc_name_${userId}`)
           const savedCRM = localStorage.getItem(`agildoc_crm_${userId}`)
@@ -209,13 +140,11 @@ export default function Dashboard() {
           if (savedAvatar) setDocAvatar(savedAvatar)
 
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-          
           if (profile) {
             setSubscriptionStatus(profile.subscription_status)
             const trialEnd = new Date(profile.trial_ends_at).getTime()
             const now = new Date().getTime()
             const diffHours = Math.floor((trialEnd - now) / (1000 * 60 * 60))
-            
             if (profile.subscription_status === 'active') {
               setTimeLeftText('Plano PRO Ativo')
               setIsExpired(false)
@@ -225,11 +154,7 @@ export default function Dashboard() {
             } else {
               const dias = Math.floor(diffHours / 24)
               const horas = diffHours % 24
-              if (dias > 0) {
-                setTimeLeftText(`${dias} dia(s) e ${horas}h restantes de teste`)
-              } else {
-                setTimeLeftText(`${horas} horas restantes de teste`)
-              }
+              setTimeLeftText(dias > 0 ? `${dias} dia(s) e ${horas}h restantes de teste` : `${horas} horas restantes de teste`)
               if (diffHours <= 0) setIsExpired(true)
             }
           } else {
@@ -238,7 +163,6 @@ export default function Dashboard() {
 
           const { data: favs } = await supabase.from('favorite_prescriptions').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
           if (favs) setFavoriteProtocols(favs)
-
         } else {
           setTimeLeftText('Modo de Visualização (Não Autenticado)')
         }
@@ -254,12 +178,8 @@ export default function Dashboard() {
         setTimeLeftText('Erro ao carregar status')
       }
     }
-
-    if (supabaseUrl !== 'https://placeholder.supabase.co') {
-      loadUserData()
-    } else {
-      setTimeLeftText('3 dias restantes (Modo Teste)')
-    }
+    if (supabaseUrl !== 'https://placeholder.supabase.co') loadUserData()
+    else setTimeLeftText('3 dias restantes (Modo Teste)')
   }, [])
 
   const fuzzyMatch = (text: string, query: string) => {
@@ -274,12 +194,10 @@ export default function Dashboard() {
       med.n.toLowerCase().includes(allergy.toLowerCase()) || 
       (med.t && med.t.toLowerCase().includes(allergy.toLowerCase()))
     )
-
     if (isAllergic) {
       const confirmar = confirm(`⚠️ ALERTA DE ALERGIA: O paciente possui restrição registrada a "${med.n}" ou classe similar. Deseja prosseguir?`)
       if (!confirmar) return
     }
-
     const newItems = [...prescriptions, { id: Date.now() + Math.random(), name: med.n, dose: med.v, freq: freq, class: med.t }]
     setPrescriptions(newItems)
     checkInteractions(newItems)
@@ -291,7 +209,6 @@ export default function Dashboard() {
       for (let j = i + 1; j < currentList.length; j++) {
         const med1 = currentList[i].name
         const med2 = currentList[j].name
-
         KNOWN_INTERACTIONS.forEach(inter => {
           if (
             (med1.toLowerCase().includes(inter.drugA.toLowerCase()) && med2.toLowerCase().includes(inter.drugB.toLowerCase())) ||
@@ -308,7 +225,6 @@ export default function Dashboard() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     const reader = new FileReader()
     reader.readAsDataURL(file)
     reader.onload = (event) => {
@@ -320,26 +236,16 @@ export default function Dashboard() {
         const MAX_HEIGHT = 150
         let width = img.width
         let height = img.height
-
         if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width
-            width = MAX_WIDTH
-          }
+          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH }
         } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height
-            height = MAX_HEIGHT
-          }
+          if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT }
         }
-
         canvas.width = width
         canvas.height = height
         const ctx = canvas.getContext('2d')
         ctx?.drawImage(img, 0, 0, width, height)
-
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
-        setDocAvatar(dataUrl)
+        setDocAvatar(canvas.toDataURL('image/jpeg', 0.7))
       }
     }
   }
@@ -353,7 +259,6 @@ export default function Dashboard() {
       localStorage.setItem(`agildoc_specialty_${user.id}`, docSpecialty)
       if (docAvatar) localStorage.setItem(`agildoc_avatar_${user.id}`, docAvatar)
     }
-    
     setIsSaved(true)
     setTimeout(() => setIsSaved(false), 3000)
   }
@@ -371,11 +276,8 @@ export default function Dashboard() {
     const newItems = receita.items.map((item: any, idx: number) => ({
       id: Date.now() + idx, name: item.name, dose: item.dose, freq: item.freq
     }))
-    
     if (receita.dias) {
-      const atestado = {
-        id: Date.now() + 999, name: 'Atestado Médico', dose: 'DOC', freq: `Concedo ${receita.dias} dias de afastamento (CID: ${receita.cid})`
-      }
+      const atestado = { id: Date.now() + 999, name: 'Atestado Médico', dose: 'DOC', freq: `Concedo ${receita.dias} dias de afastamento (CID: ${receita.cid})` }
       setPrescriptions([...prescriptions, ...newItems, atestado])
     } else {
       setPrescriptions([...prescriptions, ...newItems])
@@ -389,8 +291,6 @@ export default function Dashboard() {
     setDrugInteractionsAlerts([])
     setPainLevel(null)
     setSelectedBodyPart('')
-    setPhq9Answers(Array(9).fill(null))
-    setGad7Answers(Array(7).fill(null))
   }
 
   const handlePrint = () => window.print()
@@ -402,21 +302,14 @@ export default function Dashboard() {
       const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          emailTarget: patientEmail,
-          patientName: patientName,
-          prescriptions: prescriptions,
-          docName: docName
-        })
+        body: JSON.stringify({ emailTarget: patientEmail, patientName: patientName, prescriptions: prescriptions, docName: docName })
       })
       if (res.ok) {
         alert('E-mail enviado com sucesso!')
         setShowEmailModal(false)
         setPatientEmail('')
-      } else {
-        alert('Erro ao enviar e-mail.')
-      }
-    } catch (error) {
+      } else alert('Erro ao enviar e-mail.')
+    } catch {
       alert('Erro de conexão ao tentar enviar o e-mail.')
     } finally {
       setIsSending(false)
@@ -426,25 +319,12 @@ export default function Dashboard() {
   const handleSaveFavorite = async () => {
     if (!favoriteName) return alert('Dê um nome para a sua receita.')
     if (prescriptions.length === 0) return alert('Adicione pelo menos um item à receita.')
-    
     setIsSavingFavorite(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        alert('Você precisa estar logado para salvar favoritos.')
-        setIsSavingFavorite(false)
-        return
-      }
-
-      const newFavorite = {
-        user_id: user.id,
-        name: favoriteName,
-        specialty: docSpecialty,
-        items: prescriptions
-      }
-
+      if (!user) { alert('Você precisa estar logado.'); setIsSavingFavorite(false); return }
+      const newFavorite = { user_id: user.id, name: favoriteName, specialty: docSpecialty, items: prescriptions }
       const { data, error } = await supabase.from('favorite_prescriptions').insert([newFavorite]).select()
-      
       if (error) throw error
       if (data) {
         setFavoriteProtocols([data[0], ...favoriteProtocols])
@@ -452,7 +332,7 @@ export default function Dashboard() {
         setFavoriteName('')
         alert('Protocolo salvo com sucesso!')
       }
-    } catch (error) {
+    } catch {
       alert('Erro ao salvar o protocolo.')
     } finally {
       setIsSavingFavorite(false)
@@ -461,12 +341,11 @@ export default function Dashboard() {
 
   const handleDeleteFavorite = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este protocolo?')) return
-
     try {
       const { error } = await supabase.from('favorite_prescriptions').delete().eq('id', id)
       if (error) throw error
       setFavoriteProtocols(favoriteProtocols.filter(f => f.id !== id))
-    } catch (error) {
+    } catch {
       alert('Erro ao excluir.')
     }
   }
@@ -480,12 +359,10 @@ export default function Dashboard() {
           <p className="text-sm">Uso Interno/Externo</p>
         </div>
       </div>
-      
       <div className="flex gap-4 mb-8 text-sm text-primary-blue font-medium bg-gray-50 p-3 rounded-lg">
         <span className="flex-1">Paciente: <strong className="uppercase ml-1">{patientName || '___________________________________'}</strong></span>
         <span>Data: <strong className="ml-1">{prescriptionDate || '___/___/20__'}</strong></span>
       </div>
-
       <ul className="flex-1 space-y-6">
         {prescriptions.map((p, index) => (
           <li key={p.id} className="flex gap-4">
@@ -501,7 +378,6 @@ export default function Dashboard() {
           </li>
         ))}
       </ul>
-      
       <div className="mt-auto pt-8 border-t border-gray-300 flex flex-col items-center justify-center text-primary-blue">
         <div className="w-64 border-b border-primary-blue mb-2"></div>
         <p className="font-bold text-lg uppercase tracking-wide">{docName || 'DR(A). NOME DO MÉDICO'}</p>
@@ -535,7 +411,7 @@ export default function Dashboard() {
                 <Mail className="text-primary-blue" size={24} />
               </div>
               <h3 className="text-2xl font-black text-primary-blue mb-2">Enviar Prescrição</h3>
-              <p className="text-sm text-gray-500 mb-6">Insira o e-mail do paciente para enviar a cópia digital de forma instantânea.</p>
+              <p className="text-sm text-gray-500 mb-6">Insira o e-mail do paciente para enviar a cópia digital.</p>
               <input
                 type="email"
                 placeholder="E-mail do paciente..."
@@ -560,10 +436,10 @@ export default function Dashboard() {
                 <Star className="text-yellow-500" size={24} />
               </div>
               <h3 className="text-2xl font-black text-primary-blue mb-2">Salvar Protocolo</h3>
-              <p className="text-sm text-gray-500 mb-6">Dê um nome para esta receita. Ela ficará salva na aba "Meus Protocolos".</p>
+              <p className="text-sm text-gray-500 mb-6">Dê um nome para esta prescrição.</p>
               <input
                 type="text"
-                placeholder="Ex: Otite Infantil, Hipertensão Leve..."
+                placeholder="Ex: Otite Infantil..."
                 value={favoriteName}
                 onChange={(e) => setFavoriteName(e.target.value)}
                 className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint mb-6 font-bold text-primary-blue uppercase"
@@ -583,7 +459,7 @@ export default function Dashboard() {
             <Clock size={16} className={isExpired ? 'text-white' : 'text-action-mint'} /> 
             {isExpired ? '⚠️ Seu período de testes de 3 dias expirou!' : 'Status do Acesso:'} <span className="font-bold underline">{timeLeftText}</span>
           </span>
-          <button onClick={() => setActiveTab('planos')} className="bg-action-mint text-primary-blue font-bold px-4 py-1.5 rounded-full hover:bg-white transition-colors active:scale-95 shadow-sm">
+          <button onClick={() => setActiveTab('planos')} className="bg-action-mint text-primary-blue font-bold px-4 py-1.5 rounded-full hover:bg-white transition-colors">
             Ver Planos & Renovar
           </button>
         </div>
@@ -601,19 +477,22 @@ export default function Dashboard() {
               )}
               <span className="hidden md:inline font-bold text-sm text-primary-blue">{userEmail || 'Carregando...'}</span>
             </div>
-            
-            <button onClick={handleLogout} className="flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-red-100 transition-colors" title="Sair da Conta">
+            <button onClick={handleLogout} className="flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-red-100 transition-colors" title="Sair">
               <LogOut size={16} /> <span className="hidden md:inline">Sair</span>
             </button>
           </div>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
+          {/* MENU LATERAL COM A ABA ESPECIALISTAS */}
           <aside className="w-20 md:w-64 bg-white border-r border-gray-100 flex flex-col shadow-soft z-20 overflow-y-auto">
             <nav className="flex-1 py-6 px-3">
               <ul className="space-y-2">
                 <li onClick={() => setActiveTab('prescricao')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'prescricao' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <FileText size={20} className={activeTab === 'prescricao' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Nova Prescrição</span>
+                </li>
+                <li onClick={() => setActiveTab('especialistas')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'especialistas' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <Stethoscope size={20} className={activeTab === 'especialistas' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Especialistas</span>
                 </li>
                 <li onClick={() => setActiveTab('receitas')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'receitas' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <Zap size={20} className={activeTab === 'receitas' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Receitas Prontas</span>
@@ -637,7 +516,7 @@ export default function Dashboard() {
               <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
                 <ShieldAlert size={64} className="text-red-500 mb-4 animate-bounce" />
                 <h2 className="text-3xl font-extrabold text-primary-blue mb-2">Seu período de testes de 3 dias expirou</h2>
-                <p className="text-gray-500 max-w-md mb-8">Para continuar emitindo prescrições rápidas e seguras nos seus plantões, escolha um plano abaixo para reativar seu acesso instantaneamente.</p>
+                <p className="text-gray-500 max-w-md mb-8">Para continuar emitindo prescrições rápidas, escolha um plano abaixo.</p>
                 <button onClick={() => setActiveTab('planos')} className="bg-action-mint text-primary-blue font-extrabold text-lg px-8 py-4 rounded-2xl shadow-xl hover:bg-[#00c07d] transition-all">
                   Escolher Meu Plano Agora
                 </button>
@@ -645,78 +524,57 @@ export default function Dashboard() {
             ) : null}
 
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">
-                  {activeTab === 'prescricao' && 'Pronto Atendimento'}
-                  {activeTab === 'receitas' && 'Protocolos e Receitas Prontas'}
-                  {activeTab === 'meus-protocolos' && 'Meus Protocolos (Favoritos)'}
-                  {activeTab === 'planos' && 'Renovação e Planos de Assinatura'}
-                  {activeTab === 'configuracoes' && 'Configuração do Perfil e Carimbo'}
-                </h1>
-              </div>
+              <h1 className="text-2xl font-bold tracking-tight">
+                {activeTab === 'prescricao' && 'Pronto Atendimento & Prescrição'}
+                {activeTab === 'especialistas' && 'Ferramentas por Especialidade'}
+                {activeTab === 'receitas' && 'Protocolos e Receitas Prontas'}
+                {activeTab === 'meus-protocolos' && 'Meus Protocolos (Favoritos)'}
+                {activeTab === 'planos' && 'Renovação e Planos de Assinatura'}
+                {activeTab === 'configuracoes' && 'Configuração do Perfil e Carimbo'}
+              </h1>
             </header>
 
+            {/* ABA DE PRESCRIÇÃO LIMPA E OTIMIZADA (Sem sobrecarga) */}
             {activeTab === 'prescricao' && (
               <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
-                
-                {/* LADO ESQUERDO: FILTROS EM CAMADAS E BUSCA DE MEDICAMENTOS */}
                 <section className="flex-1 bg-white rounded-3xl shadow-soft flex flex-col overflow-hidden p-4">
                   <div className="space-y-3 mb-4 border-b pb-4">
                     <div className="relative">
                       <Search size={20} className="absolute left-4 top-3.5 text-gray-400" />
                       <input 
                         type="text" 
-                        placeholder="Busca inteligente (ex: dipirona)..." 
+                        placeholder="Busca inteligente de medicamentos..." 
                         className="w-full bg-bg-ice border border-gray-200 rounded-2xl py-3 pl-12 pr-4 outline-none text-sm font-medium" 
                         value={search} 
                         onChange={(e) => setSearch(e.target.value)} 
                       />
                     </div>
-
                     <div className="grid grid-cols-3 gap-2">
-                      <select 
-                        value={selectedSpecialtyFilter} 
-                        onChange={(e) => setSelectedSpecialtyFilter(e.target.value)}
-                        className="bg-bg-ice border border-gray-200 rounded-xl p-2 text-xs font-bold text-primary-blue outline-none"
-                      >
+                      <select value={selectedSpecialtyFilter} onChange={(e) => setSelectedSpecialtyFilter(e.target.value)} className="bg-bg-ice border rounded-xl p-2 text-xs font-bold text-primary-blue outline-none">
                         <option value="todas">Esp: Todas</option>
                         <option value="pediatria">Pediatria</option>
                         <option value="cardiologia">Cardiologia</option>
                         <option value="ortopedia">Ortopedia</option>
-                        <option value="geral">Clínico Geral</option>
+                        <option value="geral">Geral</option>
                       </select>
-
-                      <select 
-                        value={selectedTarjaFilter} 
-                        onChange={(e) => setSelectedTarjaFilter(e.target.value)}
-                        className="bg-bg-ice border border-gray-200 rounded-xl p-2 text-xs font-bold text-primary-blue outline-none"
-                      >
+                      <select value={selectedTarjaFilter} onChange={(e) => setSelectedTarjaFilter(e.target.value)} className="bg-bg-ice border rounded-xl p-2 text-xs font-bold text-primary-blue outline-none">
                         <option value="todas">Tarja: Todas</option>
                         <option value="branca">Branca</option>
                         <option value="vermelha">Vermelha</option>
                       </select>
-
-                      <select 
-                        value={selectedClassFilter} 
-                        onChange={(e) => setSelectedClassFilter(e.target.value)}
-                        className="bg-bg-ice border border-gray-200 rounded-xl p-2 text-xs font-bold text-primary-blue outline-none"
-                      >
+                      <select value={selectedClassFilter} onChange={(e) => setSelectedClassFilter(e.target.value)} className="bg-bg-ice border rounded-xl p-2 text-xs font-bold text-primary-blue outline-none">
                         <option value="todas">Classe: Todas</option>
                         <option value="Analgésico">Analgésico</option>
                         <option value="Antibiótico">Antibiótico</option>
-                        <option value="Antiemético">Antiemético</option>
                       </select>
                     </div>
                   </div>
 
-                  {/* Alerta de Interação Medicamentosa */}
                   {drugInteractionsAlerts.length > 0 && (
                     <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-3 rounded-r-xl text-xs text-red-700">
                       <p className="font-bold mb-1">⚠️ Alerta de Interação Medicamentosa:</p>
                       <ul className="list-disc pl-4 space-y-1">
-                        {drugInteractionsAlerts.map((alert, idx) => (
-                          <li key={idx}>{alert}</li>
-                        ))}
+                        {drugInteractionsAlerts.map((alert, idx) => (<li key={idx}>{alert}</li>))}
                       </ul>
                     </div>
                   )}
@@ -736,11 +594,7 @@ export default function Dashboard() {
                         </div>
                         <div className="flex flex-wrap gap-1 mt-2">
                           {med.f.map((freq: string, i: number) => (
-                            <button 
-                              key={i} 
-                              onClick={() => handleAddMedicineWithChecks(med, freq)} 
-                              className="bg-action-mint/10 text-action-mint px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-action-mint hover:text-white transition-colors"
-                            >
+                            <button key={i} onClick={() => handleAddMedicineWithChecks(med, freq)} className="bg-action-mint/10 text-action-mint px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-action-mint hover:text-white transition-colors">
                               + {freq}
                             </button>
                           ))}
@@ -750,213 +604,20 @@ export default function Dashboard() {
                   </div>
                 </section>
                 
-                {/* LADO DIREITO: PACIENTE, PRONTUÁRIO SOAP, EVA, MAPA CORPORAL, ESCALAS CLÍNICAS E RECEITA */}
                 <section className="flex-[1.2] bg-white rounded-3xl shadow-xl flex flex-col relative overflow-hidden">
-                  
-                  <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0 space-y-4 overflow-y-auto">
+                  <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0 space-y-3">
                     <div className="flex flex-col md:flex-row gap-4">
                       <div className="flex-1">
                         <label className="block text-xs font-bold text-gray-500 mb-1">NOME DO PACIENTE</label>
-                        <input 
-                          type="text" 
-                          value={patientName} 
-                          onChange={(e) => setPatientName(e.target.value)} 
-                          placeholder="Digite o nome do paciente..." 
-                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none focus:border-action-mint font-bold text-primary-blue"
-                        />
+                        <input type="text" value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="Digite o nome do paciente..." className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none font-bold text-primary-blue" />
                       </div>
                       <div className="w-full md:w-40">
                         <label className="block text-xs font-bold text-gray-500 mb-1">DATA</label>
-                        <input 
-                          type="text" 
-                          value={prescriptionDate} 
-                          onChange={(e) => setPrescriptionDate(e.target.value)} 
-                          placeholder="DD/MM/AAAA" 
-                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none focus:border-action-mint font-bold text-primary-blue md:text-center"
-                        />
-                      </div>
-                    </div>
-
-                    {/* PRONTUÁRIO DINÂMICO SOAP + ESCALA DE DOR + MAPA CORPORAL + ESCALAS CLÍNICAS */}
-                    <div className="bg-bg-ice p-4 rounded-2xl border border-gray-200 space-y-3">
-                      <p className="text-xs font-black text-primary-blue uppercase tracking-wide">Prontuário SOAP Adaptado — {docSpecialty || 'CLÍNICO GERAL'}</p>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        <input type="text" placeholder="S — Queixa principal / Subjetivo" className="bg-white border rounded-xl p-2 text-xs outline-none" />
-                        
-                        {docSpecialty.toLowerCase().includes('pediatra') ? (
-                          <input type="text" placeholder="O — Peso (kg) / Altura / PC" className="bg-white border rounded-xl p-2 text-xs outline-none" />
-                        ) : docSpecialty.toLowerCase().includes('cardio') ? (
-                          <input type="text" placeholder="O — Pressão Arterial / FC" className="bg-white border rounded-xl p-2 text-xs outline-none" />
-                        ) : docSpecialty.toLowerCase().includes('gineco') ? (
-                          <input type="text" placeholder="O — DUM / Fórmula Obstétrica" className="bg-white border rounded-xl p-2 text-xs outline-none" />
-                        ) : (
-                          <input type="text" placeholder="O — Sinais Vitais / Exame Físico" className="bg-white border rounded-xl p-2 text-xs outline-none" />
-                        )}
-                      </div>
-
-                      {/* ESCALA DE DOR (EVA: 0 a 10) */}
-                      <div className="bg-white p-3 rounded-xl border border-gray-100">
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="text-xs font-bold text-gray-600">Escala Visual Analógica de Dor (EVA)</label>
-                          <span className={`text-xs font-black px-2 py-0.5 rounded-full ${
-                            painLevel === null ? 'bg-gray-100 text-gray-500' :
-                            painLevel === 0 ? 'bg-green-100 text-green-700' :
-                            painLevel <= 3 ? 'bg-yellow-100 text-yellow-700' :
-                            painLevel <= 7 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
-                          }`}>
-                            {painLevel !== null ? `Nível ${painLevel} / 10` : 'Não avaliada'}
-                          </span>
-                        </div>
-                        <div className="flex gap-1 justify-between">
-                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                            <button
-                              key={num}
-                              type="button"
-                              onClick={() => setPainLevel(num)}
-                              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                                painLevel === num 
-                                  ? 'bg-primary-blue text-white shadow-md scale-105' 
-                                  : 'bg-bg-ice text-gray-600 hover:bg-gray-200'
-                              }`}
-                            >
-                              {num}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex justify-between text-[10px] text-gray-400 mt-1 px-1">
-                          <span>0 (Sem dor)</span>
-                          <span>5 (Moderada)</span>
-                          <span>10 (Insuportável)</span>
-                        </div>
-                      </div>
-
-                      {/* MAPA CORPORAL CLICÁVEL */}
-                      <div className="bg-white p-3 rounded-xl border border-gray-100">
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="text-xs font-bold text-gray-600">Mapa Corporal de Lesão / Dor</label>
-                          <span className="text-xs font-bold text-action-mint bg-action-mint/10 px-2 py-0.5 rounded">
-                            {selectedBodyPart ? `Região: ${selectedBodyPart}` : 'Nenhuma região selecionada'}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {['Cabeça / Face', 'Coluna Cervical', 'Ombro Direito', 'Ombro Esquerdo', 
-                            'Coluna Lombar', 'Membro Superior D.', 'Membro Superior E.', 'Quadril / Bacia',
-                            'Joelho Direito', 'Joelho Esquerdo', 'Tornozelo / Pé D.', 'Tornozelo / Pé E.'].map((part) => (
-                            <button
-                              key={part}
-                              type="button"
-                              onClick={() => setSelectedBodyPart(part)}
-                              className={`p-2 text-xs font-bold rounded-xl border text-center transition-all ${
-                                selectedBodyPart === part
-                                  ? 'bg-action-mint text-primary-blue border-action-mint shadow-sm'
-                                  : 'bg-bg-ice border-gray-200 text-gray-600 hover:border-gray-300'
-                              }`}
-                            >
-                              {part}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* ESCALAS CLÍNICAS — PHQ-9 / GAD-7 (exibidas para psiquiatria/psicologia) */}
-                      {isPsychSpecialty && (
-                        <div className="bg-white p-3 rounded-xl border border-gray-100 space-y-4">
-                          <p className="text-xs font-bold text-gray-600">Escalas Clínicas de Triagem — nas últimas 2 semanas, com que frequência o(a) paciente foi incomodado(a) por:</p>
-
-                          {/* PHQ-9 */}
-                          <div className="border border-gray-100 rounded-lg p-3">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-xs font-black text-primary-blue">PHQ-9 (Rastreio de Depressão)</span>
-                              {phq9AllAnswered && (
-                                <span className={`text-xs font-black px-2 py-0.5 rounded-full ${getPHQ9Severity(phq9Score).color}`}>
-                                  {phq9Score} pts — {getPHQ9Severity(phq9Score).label}
-                                </span>
-                              )}
-                            </div>
-                            <div className="space-y-2">
-                              {PHQ9_QUESTIONS.map((q, qIdx) => (
-                                <div key={qIdx} className="text-xs">
-                                  <p className="text-gray-700 mb-1">{qIdx + 1}. {q}</p>
-                                  <div className="flex gap-1">
-                                    {SCALE_OPTIONS.map(opt => (
-                                      <button
-                                        key={opt.value}
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = [...phq9Answers]
-                                          updated[qIdx] = opt.value
-                                          setPhq9Answers(updated)
-                                        }}
-                                        className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                                          phq9Answers[qIdx] === opt.value
-                                            ? 'bg-primary-blue text-white'
-                                            : 'bg-bg-ice text-gray-600 hover:bg-gray-200'
-                                        }`}
-                                      >
-                                        {opt.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                            {phq9SelfHarmFlag && (
-                              <div className="mt-2 bg-red-50 border-l-4 border-red-500 p-2 rounded-r-lg text-[11px] text-red-700 font-medium">
-                                ⚠️ Item 9 positivo — avaliar risco de autolesão/suicídio antes de encerrar o atendimento.
-                              </div>
-                            )}
-                          </div>
-
-                          {/* GAD-7 */}
-                          <div className="border border-gray-100 rounded-lg p-3">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-xs font-black text-primary-blue">GAD-7 (Rastreio de Ansiedade)</span>
-                              {gad7AllAnswered && (
-                                <span className={`text-xs font-black px-2 py-0.5 rounded-full ${getGAD7Severity(gad7Score).color}`}>
-                                  {gad7Score} pts — {getGAD7Severity(gad7Score).label}
-                                </span>
-                              )}
-                            </div>
-                            <div className="space-y-2">
-                              {GAD7_QUESTIONS.map((q, qIdx) => (
-                                <div key={qIdx} className="text-xs">
-                                  <p className="text-gray-700 mb-1">{qIdx + 1}. {q}</p>
-                                  <div className="flex gap-1">
-                                    {SCALE_OPTIONS.map(opt => (
-                                      <button
-                                        key={opt.value}
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = [...gad7Answers]
-                                          updated[qIdx] = opt.value
-                                          setGad7Answers(updated)
-                                        }}
-                                        className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                                          gad7Answers[qIdx] === opt.value
-                                            ? 'bg-primary-blue text-white'
-                                            : 'bg-bg-ice text-gray-600 hover:bg-gray-200'
-                                        }`}
-                                      >
-                                        {opt.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <input type="text" placeholder="A — Avaliação / CID-10" className="bg-white border rounded-xl p-2 text-xs outline-none" />
-                        <input type="text" placeholder="P — Conduta / Plano" className="bg-white border rounded-xl p-2 text-xs outline-none" />
+                        <input type="text" value={prescriptionDate} onChange={(e) => setPrescriptionDate(e.target.value)} placeholder="DD/MM/AAAA" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none font-bold text-primary-blue md:text-center" />
                       </div>
                     </div>
                   </div>
 
-                  {/* ITENS DA PRESCRIÇÃO ATUAL */}
                   <div className="flex-1 overflow-y-auto p-6">
                      {prescriptions.length === 0 ? (
                        <div className="h-full flex flex-col items-center justify-center text-gray-300">
@@ -982,23 +643,182 @@ export default function Dashboard() {
                   </div>
 
                   <div className="p-4 border-t flex items-center justify-between bg-gray-50 shrink-0">
-                    <div>
-                      <button onClick={() => setShowSaveFavoriteModal(true)} disabled={prescriptions.length === 0} className="px-4 py-2.5 rounded-xl text-yellow-600 hover:bg-yellow-100 font-bold flex items-center gap-2 transition-colors disabled:opacity-50">
-                        <Star size={18} /> <span className="hidden md:inline">Salvar Favorito</span>
-                      </button>
-                    </div>
-                    
+                    <button onClick={() => setShowSaveFavoriteModal(true)} disabled={prescriptions.length === 0} className="px-4 py-2.5 rounded-xl text-yellow-600 hover:bg-yellow-100 font-bold flex items-center gap-2 transition-colors disabled:opacity-50">
+                      <Star size={18} /> <span className="hidden md:inline">Salvar Favorito</span>
+                    </button>
                     <div className="flex gap-2">
                       <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold transition-colors">Limpar</button>
-                      <button onClick={() => setShowEmailModal(true)} className="px-4 md:px-5 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 shadow-md hover:bg-[#111e38] transition-colors">
-                        <Mail size={16} /> <span className="hidden md:inline">Enviar</span>
-                      </button>
-                      <button onClick={handlePrint} className="px-4 md:px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d] transition-colors">
-                        <Printer size={16} /> Imprimir
-                      </button>
+                      <button onClick={() => setShowEmailModal(true)} className="px-4 md:px-5 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 shadow-md hover:bg-[#111e38] transition-colors"><Mail size={16} /> Enviar</button>
+                      <button onClick={handlePrint} className="px-4 md:px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d] transition-colors"><Printer size={16} /> Imprimir</button>
                     </div>
                   </div>
                 </section>
+              </div>
+            )}
+
+            {/* ABA ESPECIALISTAS COM MENU SUPERIOR E FERRAMENTAS INTERATIVAS */}
+            {activeTab === 'especialistas' && (
+              <div className="flex-1 bg-white rounded-3xl p-6 overflow-y-auto flex flex-col gap-6">
+                
+                {/* Menu de Seleção de Especialidade no Topo */}
+                <div className="flex flex-wrap gap-2 border-b pb-4 shrink-0">
+                  {[
+                    { id: 'ortopedia', label: '🦴 Ortopedia & Traumatologia' },
+                    { id: 'pediatria', label: '👶 Pediatria' },
+                    { id: 'cardiologia', label: '❤️ Cardiologia' },
+                    { id: 'ginecologia', label: '🌸 Ginecologia' },
+                    { id: 'psiquiatria', label: '🧠 Psiquiatria / Psicologia' },
+                  ].map((spec) => (
+                    <button
+                      key={spec.id}
+                      onClick={() => setActiveSpecialtyTool(spec.id)}
+                      className={`px-5 py-2.5 rounded-2xl font-bold text-sm transition-all ${
+                        activeSpecialtyTool === spec.id
+                          ? 'bg-primary-blue text-white shadow-md scale-105'
+                          : 'bg-bg-ice text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {spec.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* FERRAMENTA 1: ORTOPEDIA (Com Escala EVA + Boneco Anatômico Interativo com marcação vermelha) */}
+                {activeSpecialtyTool === 'ortopedia' && (
+                  <div className="space-y-6">
+                    <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
+                      <h3 className="text-lg font-bold text-primary-blue">Módulo de Ortopedia & Dor</h3>
+                      
+                      {/* Escala de Dor EVA */}
+                      <div className="bg-white p-4 rounded-2xl border border-gray-100">
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="text-xs font-bold text-gray-600">Escala Visual Analógica de Dor (EVA)</label>
+                          <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
+                            painLevel === null ? 'bg-gray-100 text-gray-500' :
+                            painLevel <= 3 ? 'bg-yellow-100 text-yellow-700' :
+                            painLevel <= 7 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {painLevel !== null ? `Nível ${painLevel} / 10` : 'Não avaliada'}
+                          </span>
+                        </div>
+                        <div className="flex gap-1 justify-between">
+                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                            <button key={num} onClick={() => setPainLevel(num)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${painLevel === num ? 'bg-primary-blue text-white shadow-md scale-105' : 'bg-bg-ice text-gray-600 hover:bg-gray-200'}`}>
+                              {num}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* MAPA CORPORAL INTUITIVO (BONECO COM MARCAÇÃO VERMELHA) */}
+                      <div className="bg-white p-5 rounded-2xl border border-gray-100">
+                        <div className="flex justify-between items-center mb-4">
+                          <div>
+                            <h4 className="font-bold text-sm text-primary-blue">Mapa Anatômico de Lesão</h4>
+                            <p className="text-xs text-gray-400">Clique na região afetada no boneco (a área selecionada ficará vermelha).</p>
+                          </div>
+                          <div className="flex gap-1 bg-bg-ice p-1 rounded-xl">
+                            <button onClick={() => setBodySide('frente')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${bodySide === 'frente' ? 'bg-primary-blue text-white' : 'text-gray-600'}`}>Frente</button>
+                            <button onClick={() => setBodySide('costas')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${bodySide === 'costas' ? 'bg-primary-blue text-white' : 'text-gray-600'}`}>Costas</button>
+                          </div>
+                        </div>
+
+                        {/* Boneco Visual em Grid Anatômico */}
+                        <div className="max-w-md mx-auto flex flex-col items-center gap-3 py-4">
+                          {bodySide === 'frente' ? (
+                            <div className="w-full grid grid-cols-2 gap-3">
+                              {['Cabeça / Face', 'Ombro Direito', 'Ombro Esquerdo', 'Tórax / Abdome', 'Membro Superior D.', 'Membro Superior E.', 'Quadril / Bacia', 'Joelho Direito', 'Joelho Esquerdo', 'Tornozelo / Pé D.', 'Tornozelo / Pé E.'].map((part) => (
+                                <button
+                                  key={part}
+                                  onClick={() => setSelectedBodyPart(part)}
+                                  className={`p-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
+                                    selectedBodyPart === part
+                                      ? 'bg-red-600 text-white border-red-600 shadow-lg scale-105 animate-pulse'
+                                      : 'bg-bg-ice text-gray-700 border-gray-200 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  <span className={`w-2.5 h-2.5 rounded-full ${selectedBodyPart === part ? 'bg-white' : 'bg-gray-400'}`}></span>
+                                  {part}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="w-full grid grid-cols-2 gap-3">
+                              {['Cabeça (Posterior)', 'Coluna Cervical', 'Coluna Dorsal', 'Coluna Lombar', 'Ombro Costas D.', 'Ombro Costas E.', 'Glúteo / Região Sacra', 'Coxa / Perna D.', 'Coxa / Perna E.', 'Calcanhar / Pé D.', 'Calcanhar / Pé E.'].map((part) => (
+                                <button
+                                  key={part}
+                                  onClick={() => setSelectedBodyPart(part)}
+                                  className={`p-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
+                                    selectedBodyPart === part
+                                      ? 'bg-red-600 text-white border-red-600 shadow-lg scale-105 animate-pulse'
+                                      : 'bg-bg-ice text-gray-700 border-gray-200 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  <span className={`w-2.5 h-2.5 rounded-full ${selectedBodyPart === part ? 'bg-white' : 'bg-gray-400'}`}></span>
+                                  {part}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {selectedBodyPart && (
+                          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl flex justify-between items-center text-xs text-red-700">
+                            <span>Região Ativa Selecionada: <strong>{selectedBodyPart}</strong></span>
+                            <button onClick={() => setSelectedBodyPart('')} className="font-bold underline">Limpar Seleção</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* FERRAMENTA 2: PEDIATRIA */}
+                {activeSpecialtyTool === 'pediatria' && (
+                  <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
+                    <h3 className="text-lg font-bold text-primary-blue">Ferramentas de Pediatria</h3>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Peso do Criança (kg)</label><input type="number" placeholder="Ex: 12.5" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Idade</label><input type="text" placeholder="Ex: 2 anos" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Curva OMS</label><input type="text" placeholder="Percentil Peso/Altura" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* FERRAMENTA 3: CARDIOLOGIA */}
+                {activeSpecialtyTool === 'cardiologia' && (
+                  <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
+                    <h3 className="text-lg font-bold text-primary-blue">Cardiologia & Hemodinâmica</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Pressão Arterial Média</label><input type="text" placeholder="120/80 mmHg" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Escala de Risco (Framingham)</label><input type="text" placeholder="Calcular risco cardiovascular" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* FERRAMENTA 4: GINECOLOGIA */}
+                {activeSpecialtyTool === 'ginecologia' && (
+                  <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
+                    <h3 className="text-lg font-bold text-primary-blue">Ginecologia & Obstetrícia</h3>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">DUM</label><input type="date" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Fórmula Obstétrica</label><input type="text" placeholder="G_ P_ A_" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Rastreio Preventivo</label><input type="text" placeholder="Papanicolau / Mamografia" className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* FERRAMENTA 5: PSIQUIATRIA */}
+                {activeSpecialtyTool === 'psiquiatria' && (
+                  <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
+                    <h3 className="text-lg font-bold text-primary-blue">Psiquiatria & Escalas Clínicas</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Escala PHQ-9 (Depressão)</label><input type="text" placeholder="Pontuação total..." className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                      <div className="bg-white p-4 rounded-2xl border"><label className="text-xs font-bold text-gray-500">Escala GAD-7 (Ansiedade)</label><input type="text" placeholder="Pontuação total..." className="w-full border rounded-xl p-2 mt-1 text-sm outline-none" /></div>
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
 
@@ -1008,7 +828,6 @@ export default function Dashboard() {
                   <div className="h-full flex flex-col items-center justify-center text-gray-400">
                     <Bookmark size={64} className="mb-4 text-yellow-200" />
                     <h3 className="text-xl font-bold text-primary-blue mb-2">Nenhum protocolo salvo</h3>
-                    <p className="max-w-md text-center">Quando você montar uma receita na aba de Prescrição, clique em "Salvar Favorito" para ela aparecer aqui.</p>
                   </div>
                 ) : (
                   <div className="grid md:grid-cols-2 gap-6">
@@ -1020,22 +839,10 @@ export default function Dashboard() {
                             <p className="text-sm text-yellow-600 font-bold bg-yellow-50 inline-block px-2 py-0.5 rounded mt-1">{fav.specialty}</p>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => handleDeleteFavorite(fav.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Excluir">
-                              <Trash2 size={18} />
-                            </button>
-                            <button onClick={() => {applyReceita({items: fav.items}); setActiveTab('prescricao')}} className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-[#111e38]">
-                              Aplicar
-                            </button>
+                            <button onClick={() => handleDeleteFavorite(fav.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                            <button onClick={() => {applyReceita({items: fav.items}); setActiveTab('prescricao')}} className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md">Aplicar</button>
                           </div>
                         </div>
-                        <ul className="space-y-2 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                          {fav.items.map((i: any, idx: number) => (
-                            <li key={idx} className="text-sm text-gray-700 flex justify-between border-b border-gray-200 pb-1 last:border-0">
-                              <span className="font-semibold">{i.name}</span> 
-                              <span className="text-gray-500 text-xs text-right max-w-[50%]">{i.freq}</span>
-                            </li>
-                          ))}
-                        </ul>
                       </div>
                     ))}
                   </div>
@@ -1053,15 +860,8 @@ export default function Dashboard() {
                           <h3 className="font-bold text-lg text-primary-blue">{receita.name}</h3>
                           <p className="text-sm text-gray-500">Sugestão: Atestado de {receita.dias} dias (CID {receita.cid})</p>
                         </div>
-                        <button onClick={() => {applyReceita(receita); setActiveTab('prescricao')}} className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-[#111e38]">
-                          Aplicar Receita
-                        </button>
+                        <button onClick={() => {applyReceita(receita); setActiveTab('prescricao')}} className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold">Aplicar Receita</button>
                       </div>
-                      <ul className="space-y-2 bg-bg-ice p-3 rounded-lg">
-                        {receita.items.map((i, idx) => (
-                          <li key={idx} className="text-sm text-gray-700 flex justify-between border-b border-gray-200 pb-1 last:border-0"><span className="font-semibold">{i.name}</span> <span className="text-gray-500">{i.freq}</span></li>
-                        ))}
-                      </ul>
                     </div>
                   ))}
                 </div>
@@ -1071,31 +871,17 @@ export default function Dashboard() {
             {activeTab === 'planos' && (
               <div className="flex-1 bg-white rounded-3xl p-8 overflow-y-auto text-center">
                 <h2 className="text-3xl font-black text-primary-blue mb-4">Escolha o seu plano de renovação</h2>
-                <p className="text-gray-500 mb-10 max-w-xl mx-auto">Mantenha seu acesso contínuo aos prontuários e receitas rápidas no plantão.</p>
                 <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto text-left">
                   <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between">
-                    <div>
-                      <h3 className="font-bold text-lg text-primary-blue mb-1">Plano Mensal</h3>
-                      <p className="text-sm text-gray-400 mb-6">Renovação mês a mês.</p>
-                      <div className="text-3xl font-black text-primary-blue mb-6">R$ 47,90 <span className="text-xs font-normal text-gray-400">/mês</span></div>
-                    </div>
+                    <div><h3 className="font-bold text-lg text-primary-blue mb-1">Plano Mensal</h3><div className="text-3xl font-black text-primary-blue mb-6">R$ 47,90</div></div>
                     <a href="https://pay.kiwify.com.br/SEU-LINK-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">Assinar Mensal</a>
                   </div>
-                  <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between relative transform md:-translate-y-2">
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-action-mint text-primary-blue font-bold text-xs px-3 py-1 rounded-full">MAIS POPULAR</div>
-                    <div>
-                      <h3 className="font-bold text-lg mb-1">Plano Trimestral</h3>
-                      <p className="text-sm text-white/60 mb-6">Economia para o seu plantão.</p>
-                      <div className="text-3xl font-black text-action-mint mb-6">R$ 119,90 <span className="text-xs font-normal text-white/60">/tri</span></div>
-                    </div>
+                  <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between">
+                    <div><h3 className="font-bold text-lg mb-1">Plano Trimestral</h3><div className="text-3xl font-black text-action-mint mb-6">R$ 119,90</div></div>
                     <a href="https://pay.kiwify.com.br/SEU-LINK-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md">Assinar Trimestral</a>
                   </div>
                   <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between">
-                    <div>
-                      <h3 className="font-bold text-lg text-primary-blue mb-1">Plano Anual</h3>
-                      <p className="text-sm text-gray-400 mb-6">Máximo desconto (2 meses grátis).</p>
-                      <div className="text-3xl font-black text-primary-blue mb-6">R$ 347,90 <span className="text-xs font-normal text-gray-400">/ano</span></div>
-                    </div>
+                    <div><h3 className="font-bold text-lg text-primary-blue mb-1">Plano Anual</h3><div className="text-3xl font-black text-primary-blue mb-6">R$ 347,90</div></div>
                     <a href="https://pay.kiwify.com.br/SEU-LINK-ANUAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all">Assinar Anual</a>
                   </div>
                 </div>
@@ -1105,72 +891,29 @@ export default function Dashboard() {
             {activeTab === 'configuracoes' && (
               <div className="flex-1 bg-white rounded-3xl p-8 max-w-2xl shadow-soft overflow-y-auto">
                  <h3 className="text-xl font-bold text-primary-blue mb-6 border-b pb-4">Personalização do Perfil e Carimbo</h3>
-                 
                  <div className="space-y-6">
                    <div>
-                     <label className="block text-sm font-bold text-gray-600 mb-2">Foto do Perfil (Leve e Compactada)</label>
+                     <label className="block text-sm font-bold text-gray-600 mb-2">Foto do Perfil</label>
                      <div className="flex items-center gap-4">
-                       {docAvatar ? (
-                         <img src={docAvatar} alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-primary-blue shadow-md" />
-                       ) : (
-                         <div className="w-16 h-16 rounded-full bg-bg-ice border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 font-bold">Sem Foto</div>
-                       )}
-                       <div>
-                         <label className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold cursor-pointer hover:bg-[#111e38] transition-colors inline-flex items-center gap-2">
-                           <Camera size={16} /> Escolher Foto
-                           <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                         </label>
-                         <p className="text-xs text-gray-400 mt-1">A imagem é compactada automaticamente para otimizar o sistema.</p>
-                       </div>
+                       {docAvatar ? <img src={docAvatar} alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-primary-blue shadow-md" /> : <div className="w-16 h-16 rounded-full bg-bg-ice border-2 border-dashed flex items-center justify-center text-gray-400 font-bold">Sem Foto</div>}
+                       <label className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold cursor-pointer hover:bg-[#111e38] transition-colors inline-flex items-center gap-2"><Camera size={16} /> Escolher Foto<input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>
                      </div>
                    </div>
-
                    <div>
-                     <label className="block text-sm font-bold text-gray-600 mb-2">Nome do Médico (Sairá no rodapé da receita)</label>
-                     <input type="text" value={docName} onChange={(e) => setDocName(e.target.value.toUpperCase())} placeholder="Ex: DR(A). SEU NOME COMPLETO" className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-bold uppercase" />
+                     <label className="block text-sm font-bold text-gray-600 mb-2">Nome do Médico</label>
+                     <input type="text" value={docName} onChange={(e) => setDocName(e.target.value.toUpperCase())} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none font-bold uppercase" />
                    </div>
-                   
                    <div className="grid grid-cols-2 gap-4">
-                     <div>
-                       <label className="block text-sm font-bold text-gray-600 mb-2">Número do CRM</label>
-                       <input type="text" value={docCRM} onChange={(e) => setDocCRM(e.target.value)} className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-medium" placeholder="Ex: 123456" />
-                     </div>
-                     <div>
-                       <label className="block text-sm font-bold text-gray-600 mb-2">Estado (UF)</label>
-                       <select value={docUF} onChange={(e) => setDocUF(e.target.value)} className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-medium cursor-pointer">
-                         {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
-                           <option key={uf} value={uf}>{uf}</option>
-                         ))}
-                       </select>
-                     </div>
+                     <div><label className="block text-sm font-bold text-gray-600 mb-2">CRM</label><input type="text" value={docCRM} onChange={(e) => setDocCRM(e.target.value)} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none" /></div>
+                     <div><label className="block text-sm font-bold text-gray-600 mb-2">UF</label><select value={docUF} onChange={(e) => setDocUF(e.target.value)} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none">{['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => <option key={uf} value={uf}>{uf}</option>)}</select></div>
                    </div>
-
                    <div>
-                     <label className="block text-sm font-bold text-gray-600 mb-2">Especialidade (Sairá abaixo do CRM)</label>
-                     <input 
-                       type="text" 
-                       list="specialties" 
-                       value={docSpecialty} 
-                       onChange={(e) => setDocSpecialty(e.target.value.toUpperCase())} 
-                       className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-bold uppercase" 
-                       placeholder="Ex: PEDIATRA"
-                     />
-                     <datalist id="specialties">
-                       <option value="MÉDICO CLÍNICO GERAL" />
-                       <option value="PEDIATRA" />
-                       <option value="CARDIOLOGISTA" />
-                       <option value="GINECOLOGISTA E OBSTETRA" />
-                       <option value="ORTOPEDISTA E TRAUMATOLOGISTA" />
-                       <option value="PSIQUIATRA" />
-                       <option value="PSICÓLOGO(A)" />
-                     </datalist>
+                     <label className="block text-sm font-bold text-gray-600 mb-2">Especialidade</label>
+                     <input type="text" value={docSpecialty} onChange={(e) => setDocSpecialty(e.target.value.toUpperCase())} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none font-bold uppercase" />
                    </div>
-
-                   <div className="pt-6 border-t border-gray-100 flex items-center gap-4">
-                     <button onClick={handleSaveProfile} className="bg-action-mint text-primary-blue font-extrabold px-8 py-3 rounded-xl shadow-md hover:bg-[#00c07d] transition-colors flex items-center gap-2">
-                       <Save size={20} /> Salvar Configurações
-                     </button>
-                     {isSaved && <span className="text-action-mint font-bold flex items-center gap-1 animate-pulse"><CheckCircle size={18} /> Salvo com sucesso!</span>}
+                   <div className="pt-6 border-t flex items-center gap-4">
+                     <button onClick={handleSaveProfile} className="bg-action-mint text-primary-blue font-extrabold px-8 py-3 rounded-xl shadow-md flex items-center gap-2"><Save size={20} /> Salvar</button>
+                     {isSaved && <span className="text-action-mint font-bold flex items-center gap-1"><CheckCircle size={18} /> Salvo!</span>}
                    </div>
                  </div>
               </div>
