@@ -77,7 +77,7 @@ export default function Dashboard() {
   const [docCRM, setDocCRM] = useState('1252648')
   const [docUF, setDocUF] = useState('RJ')
   const [docSpecialty, setDocSpecialty] = useState('MÉDICO CLÍNICO GERAL')
-  const [docAvatar, setDocAvatar] = useState('') // Estado da foto de perfil leve
+  const [docAvatar, setDocAvatar] = useState('')
   const [isSaved, setIsSaved] = useState(false)
 
   const [showEmailModal, setShowEmailModal] = useState(false)
@@ -88,6 +88,38 @@ export default function Dashboard() {
   const [showSaveFavoriteModal, setShowSaveFavoriteModal] = useState(false)
   const [favoriteName, setFavoriteName] = useState('')
   const [isSavingFavorite, setIsSavingFavorite] = useState(false)
+
+  // --- CONTROLE DE INATIVIDADE (Logout Automático após 15 minutos) ---
+  useEffect(() => {
+    let inactivityTimer: NodeJS.Timeout
+
+    const logoutDueToInactivity = async () => {
+      await supabase.auth.signOut()
+      alert('Sua sessão expirou por inatividade por motivos de segurança.')
+      window.location.href = '/' 
+    }
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer)
+      // 15 minutos de inatividade
+      inactivityTimer = setTimeout(logoutDueToInactivity, 15 * 60 * 1000) 
+    }
+
+    window.addEventListener('mousemove', resetTimer)
+    window.addEventListener('keypress', resetTimer)
+    window.addEventListener('click', resetTimer)
+    window.addEventListener('scroll', resetTimer)
+
+    resetTimer()
+
+    return () => {
+      clearTimeout(inactivityTimer)
+      window.removeEventListener('mousemove', resetTimer)
+      window.removeEventListener('keypress', resetTimer)
+      window.removeEventListener('click', resetTimer)
+      window.removeEventListener('scroll', resetTimer)
+    }
+  }, [])
   
   useEffect(() => {
     const savedName = localStorage.getItem('agildoc_name')
@@ -159,7 +191,6 @@ export default function Dashboard() {
     }
   }, [])
 
-  // Função para comprimir e redimensionar a imagem para menos de 20KB antes de salvar
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -193,7 +224,6 @@ export default function Dashboard() {
         const ctx = canvas.getContext('2d')
         ctx?.drawImage(img, 0, 0, width, height)
 
-        // Converte para JPEG com compressão de 70% para garantir arquivo extremamente leve (< 15kb)
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
         setDocAvatar(dataUrl)
       }
@@ -211,10 +241,9 @@ export default function Dashboard() {
     setTimeout(() => setIsSaved(false), 3000)
   }
 
-  // Função de Logout (Sair)
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    window.location.href = '/' // Redireciona para a página inicial/login
+    window.location.href = '/' 
   }
 
   const ALL_MEDICINES = [...MEDICINES_DB, ...dbMedicines]
@@ -439,7 +468,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Barra Superior com Foto do Perfil e Botão de Logout */}
         <div className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-30">
           <Logo className="h-8" />
           <div className="flex items-center gap-4">
@@ -452,7 +480,6 @@ export default function Dashboard() {
               <span className="hidden md:inline font-bold text-sm text-primary-blue">{docName.split(' ')[0]}</span>
             </div>
             
-            {/* BOTÃO DE SAIR / LOGOUT */}
             <button onClick={handleLogout} className="flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-red-100 transition-colors" title="Sair da Conta">
               <LogOut size={16} /> <span className="hidden md:inline">Sair</span>
             </button>
@@ -701,13 +728,11 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ABA DE CONFIGURAÇÕES COM UPLOAD DE FOTO LEVE E CARIMBO */}
             {activeTab === 'configuracoes' && (
               <div className="flex-1 bg-white rounded-3xl p-8 max-w-2xl shadow-soft overflow-y-auto">
                  <h3 className="text-xl font-bold text-primary-blue mb-6 border-b pb-4">Personalização do Perfil e Carimbo</h3>
                  
                  <div className="space-y-6">
-                   {/* Seção da Foto de Perfil */}
                    <div>
                      <label className="block text-sm font-bold text-gray-600 mb-2">Foto do Perfil (Leve e Compactada)</label>
                      <div className="flex items-center gap-4">
