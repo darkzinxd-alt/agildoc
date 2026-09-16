@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope, Sparkles, Lock } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope, Sparkles, Lock, Building2 } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
@@ -136,6 +136,7 @@ export default function Dashboard() {
   const [docUF, setDocUF] = useState('RJ')
   const [docSpecialty, setDocSpecialty] = useState('')
   const [docAvatar, setDocAvatar] = useState('')
+  const [docHospital, setDocHospital] = useState('') // Unidade de Atendimento / Hospital
   const [userEmail, setUserEmail] = useState('')
   const [isSaved, setIsSaved] = useState(false)
 
@@ -201,12 +202,14 @@ export default function Dashboard() {
           const savedUF = localStorage.getItem(`agildoc_uf_${userId}`)
           const savedSpecialty = localStorage.getItem(`agildoc_specialty_${userId}`)
           const savedAvatar = localStorage.getItem(`agildoc_avatar_${userId}`)
+          const savedHospital = localStorage.getItem(`agildoc_hospital_${userId}`)
           
           if (savedName) setDocName(savedName)
           if (savedCRM) setDocCRM(savedCRM)
           if (savedUF) setDocUF(savedUF)
           if (savedSpecialty) setDocSpecialty(savedSpecialty)
           if (savedAvatar) setDocAvatar(savedAvatar)
+          if (savedHospital) setDocHospital(savedHospital)
 
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
           if (profile) {
@@ -329,6 +332,7 @@ export default function Dashboard() {
       localStorage.setItem(`agildoc_crm_${user.id}`, docCRM)
       localStorage.setItem(`agildoc_uf_${user.id}`, docUF)
       localStorage.setItem(`agildoc_specialty_${user.id}`, docSpecialty)
+      localStorage.setItem(`agildoc_hospital_${user.id}`, docHospital)
       if (docAvatar) localStorage.setItem(`agildoc_avatar_${user.id}`, docAvatar)
     }
     setIsSaved(true)
@@ -489,14 +493,22 @@ export default function Dashboard() {
 
   const ReceituarioVia = ({ titulo }: { titulo: string }) => (
     <div className="w-1/2 h-full flex flex-col p-8 relative">
-      <div className="flex justify-between items-start mb-8 border-b-2 border-primary-blue pb-4">
+      <div className="flex justify-between items-start mb-4 border-b-2 border-primary-blue pb-4">
         <Logo className="h-8" />
         <div className="text-right text-primary-blue">
           <p className="font-bold text-lg uppercase">{titulo}</p>
           <p className="text-sm">Uso Interno/Externo</p>
         </div>
       </div>
-      <div className="flex gap-4 mb-8 text-sm text-primary-blue font-medium bg-gray-50 p-3 rounded-lg">
+
+      {/* UNIDADE DE ATENDIMENTO / HOSPITAL FIXA NO CABEÇALHO */}
+      {docHospital && (
+        <div className="mb-3 text-xs font-black text-primary-blue bg-blue-50 px-3 py-1.5 rounded-lg uppercase tracking-wide border border-blue-100 flex items-center gap-2">
+          <Building2 size={14} className="text-action-mint" /> Unidade / Hospital: {docHospital}
+        </div>
+      )}
+
+      <div className="flex gap-4 mb-6 text-sm text-primary-blue font-medium bg-gray-50 p-3 rounded-lg">
         <span className="flex-1">Paciente: <strong className="uppercase ml-1">{patientName || '___________________________________'}</strong></span>
         <span>Data: <strong className="ml-1">{prescriptionDate || '___/___/20__'}</strong></span>
       </div>
@@ -1218,7 +1230,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ABA PLANOS E ASSINATURA (ATUALIZADA COM AS 2 CATEGORIAS EM 3 OPÇÕES CADA) */}
             {activeTab === 'planos' && (
               <div className="flex-1 bg-white rounded-3xl p-8 overflow-y-auto text-center space-y-10">
                 <div>
@@ -1226,7 +1237,6 @@ export default function Dashboard() {
                   <p className="text-gray-500 text-sm">Evolua seu consultório com prescrição rápida ou desbloqueie ferramentas avançadas com IA.</p>
                 </div>
 
-                {/* CATEGORIA 1: PLANO BÁSICO (CLÍNICO GERAL) */}
                 <div className="space-y-4 text-left max-w-5xl mx-auto">
                   <div className="flex items-center gap-2 border-b pb-2">
                     <span className="bg-gray-100 text-primary-blue font-extrabold text-xs px-3 py-1 rounded-lg uppercase tracking-wider">Essencial</span>
@@ -1234,7 +1244,6 @@ export default function Dashboard() {
                   </div>
 
                   <div className="grid md:grid-cols-3 gap-6">
-                    {/* Básico Mensal */}
                     <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-primary-blue transition-all">
                       <div>
                         <span className="text-gray-500 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-100">Básico Mensal</span>
@@ -1245,7 +1254,6 @@ export default function Dashboard() {
                       <a href="https://pay.kiwify.com.br/SEU-LINK-BASICO-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Básico Mensal</a>
                     </div>
 
-                    {/* Básico Trimestral (Mais Comprado) */}
                     <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between relative transform md:-translate-y-2 border-2 border-action-mint">
                       <div className="absolute -top-3.5 right-6 bg-action-mint text-primary-blue font-extrabold text-[10px] uppercase px-3 py-1 rounded-full shadow-md tracking-wider">
                         Mais Comprado ⭐
@@ -1259,7 +1267,6 @@ export default function Dashboard() {
                       <a href="https://pay.kiwify.com.br/SEU-LINK-BASICO-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md text-sm">Assinar Básico Trimestral</a>
                     </div>
 
-                    {/* Básico Anual */}
                     <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-primary-blue transition-all">
                       <div>
                         <span className="text-gray-500 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-100">Básico Anual</span>
@@ -1278,7 +1285,6 @@ export default function Dashboard() {
                   <div className="flex-grow border-t border-gray-200"></div>
                 </div>
 
-                {/* CATEGORIA 2: PLANOS PRO (ESPECIALISTAS + IA) */}
                 <div className="space-y-4 text-left max-w-5xl mx-auto">
                   <div className="flex items-center gap-2 border-b pb-2">
                     <span className="bg-action-mint/20 text-primary-blue font-extrabold text-xs px-3 py-1 rounded-lg uppercase tracking-wider">Avançado</span>
@@ -1286,7 +1292,6 @@ export default function Dashboard() {
                   </div>
 
                   <div className="grid md:grid-cols-3 gap-6">
-                    {/* Pro Mensal */}
                     <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-action-mint transition-all">
                       <div>
                         <span className="bg-primary-blue/10 text-primary-blue text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO Mensal</span>
@@ -1297,7 +1302,6 @@ export default function Dashboard() {
                       <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Pro Mensal</a>
                     </div>
 
-                    {/* Pro Trimestral (Mais Comprado) */}
                     <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between relative transform md:-translate-y-2 border-2 border-action-mint">
                       <div className="absolute -top-3.5 right-6 bg-action-mint text-primary-blue font-extrabold text-[10px] uppercase px-3 py-1 rounded-full shadow-md tracking-wider">
                         Mais Comprado ⭐
@@ -1311,7 +1315,6 @@ export default function Dashboard() {
                       <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md text-sm">Assinar Pro Trimestral</a>
                     </div>
 
-                    {/* Pro Anual */}
                     <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-action-mint transition-all">
                       <div>
                         <span className="bg-yellow-100 text-yellow-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO Anual (Melhor Valor)</span>
@@ -1349,6 +1352,10 @@ export default function Dashboard() {
                    <div>
                      <label className="block text-sm font-bold text-gray-600 mb-2">Especialidade</label>
                      <input type="text" value={docSpecialty} onChange={(e) => setDocSpecialty(e.target.value.toUpperCase())} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none font-bold uppercase" />
+                   </div>
+                   <div>
+                     <label className="block text-sm font-bold text-gray-600 mb-2">Unidade de Atendimento / Hospital (Plantão do Dia)</label>
+                     <input type="text" value={docHospital} onChange={(e) => setDocHospital(e.target.value.toUpperCase())} placeholder="Ex: UPA Central / Hospital Municipal..." className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none font-bold uppercase" />
                    </div>
                    <div className="pt-6 border-t flex items-center gap-4">
                      <button onClick={handleSaveProfile} className="bg-action-mint text-primary-blue font-extrabold px-8 py-3 rounded-xl shadow-md flex items-center gap-2"><Save size={20} /> Salvar</button>
