@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope, Sparkles, Lock, Building2, AlertTriangle } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope, Sparkles, Lock, Building2, AlertTriangle, History, Plus } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
@@ -104,8 +104,12 @@ export default function Dashboard() {
   // Identificação Universal do Paciente e Alergias Editáveis
   const [patientName, setPatientName] = useState('')
   const [prescriptionDate, setPrescriptionDate] = useState('')
-  const [patientAllergiesInput, setPatientAllergiesInput] = useState('') // Input digitado pelo médico
+  const [patientAllergiesInput, setPatientAllergiesInput] = useState('') 
   
+  // Histórico Automático (Duração de 24h)
+  const [attendanceId, setAttendanceId] = useState(() => Date.now().toString())
+  const [historyData, setHistoryData] = useState<any[]>([])
+
   const [selectedSpecialtyFilter, setSelectedSpecialtyFilter] = useState('todas')
   const [selectedClassFilter, setSelectedClassFilter] = useState('todas')
   const [selectedTarjaFilter, setSelectedTarjaFilter] = useState('todas')
@@ -127,7 +131,7 @@ export default function Dashboard() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
 
   const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
-  const [userPlanTier, setUserPlanTier] = useState('basico') // 'basico' ou 'pro'
+  const [userPlanTier, setUserPlanTier] = useState('basico')
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
   const [isExpired, setIsExpired] = useState(false)
   
@@ -136,7 +140,7 @@ export default function Dashboard() {
   const [docUF, setDocUF] = useState('RJ')
   const [docSpecialty, setDocSpecialty] = useState('')
   const [docAvatar, setDocAvatar] = useState('')
-  const [docHospital, setDocHospital] = useState('') // Unidade de Atendimento / Hospital
+  const [docHospital, setDocHospital] = useState('')
   const [userEmail, setUserEmail] = useState('')
   const [isSaved, setIsSaved] = useState(false)
 
@@ -165,6 +169,7 @@ export default function Dashboard() {
     return false
   }
 
+  // Efeito de Segurança contra inatividade
   useEffect(() => {
     let inactivityTimer: NodeJS.Timeout
     const logoutDueToInactivity = async () => {
@@ -190,6 +195,7 @@ export default function Dashboard() {
     }
   }, [])
   
+  // Efeito para carregar dados do usuário e também limpar histórico antigo (24h)
   useEffect(() => {
     async function loadUserData() {
       try {
@@ -210,6 +216,18 @@ export default function Dashboard() {
           if (savedSpecialty) setDocSpecialty(savedSpecialty)
           if (savedAvatar) setDocAvatar(savedAvatar)
           if (savedHospital) setDocHospital(savedHospital)
+
+          // Carrega e filtra o Histórico de 24h
+          const savedHistory = localStorage.getItem(`agildoc_history_${userId}`)
+          if (savedHistory) {
+            const parsed = JSON.parse(savedHistory)
+            const now = Date.now()
+            const validHistory = parsed.filter((h: any) => now - h.timestamp < 24 * 60 * 60 * 1000)
+            setHistoryData(validHistory)
+            if (parsed.length !== validHistory.length) {
+              localStorage.setItem(`agildoc_history_${userId}`, JSON.stringify(validHistory))
+            }
+          }
 
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
           if (profile) {
@@ -257,6 +275,37 @@ export default function Dashboard() {
     else setTimeLeftText('3 dias restantes (Modo Teste)')
   }, [])
 
+  // Auto-Save do Histórico (acionado automaticamente ao editar receita)
+  useEffect(() => {
+    if (!patientName && prescriptions.length === 0) return // Não salva se estiver 100% vazio
+    
+    setHistoryData(prev => {
+      const idx = prev.findIndex(h => h.id === attendanceId)
+      const newEntry = {
+        id: attendanceId,
+        timestamp: parseInt(attendanceId), // Guarda a hora exata que começou
+        lastUpdated: Date.now(),
+        patientName,
+        prescriptionDate,
+        patientAllergiesInput,
+        prescriptions
+      }
+      
+      const updated = [...prev]
+      if (idx >= 0) {
+        updated[idx] = newEntry // Atualiza o existente
+      } else {
+        updated.unshift(newEntry) // Adiciona no topo
+      }
+      
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) localStorage.setItem(`agildoc_history_${user.id}`, JSON.stringify(updated))
+      })
+
+      return updated
+    })
+  }, [patientName, prescriptions, prescriptionDate, patientAllergiesInput, attendanceId])
+
   const fuzzyMatch = (text: string, query: string) => {
     if (!query) return true
     const cleanText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -265,7 +314,6 @@ export default function Dashboard() {
   }
 
   const handleAddMedicineWithChecks = (med: any, freq: string) => {
-    // Quebra as alergias digitadas pelo médico por vírgula para verificar individualmente
     const activeAllergies = patientAllergiesInput
       .split(',')
       .map(a => a.trim().toLowerCase())
@@ -284,6 +332,22 @@ export default function Dashboard() {
     const newItems = [...prescriptions, { id: Date.now() + Math.random(), name: med.n, dose: med.v, freq: freq, class: med.t }]
     setPrescriptions(newItems)
     checkInteractions(newItems)
+  }
+
+  // Função para Atualizar Campos Editáveis dinamicamente (para o histórico e impressão refletirem a mudança)
+  const updatePrescriptionField = (id: number, field: string, value: string) => {
+    setPrescriptions(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p))
+  }
+
+  // Nova Função: Adicionar Medicamento Livre (Em Branco)
+  const handleAddCustomMedicine = () => {
+    setPrescriptions([...prescriptions, { 
+      id: Date.now() + Math.random(), 
+      name: '', 
+      dose: '', 
+      freq: '', 
+      class: 'Livre' 
+    }])
   }
 
   const checkInteractions = (currentList: any[]) => {
@@ -368,6 +432,7 @@ export default function Dashboard() {
     }
   }
 
+  // Ao Limpar, o sistema entende que é um novo atendimento e gera um novo ID para o histórico
   const handleClear = () => {
     setPrescriptions([])
     setPatientName('')
@@ -380,6 +445,7 @@ export default function Dashboard() {
     setPhq9Answers(Array(9).fill(null))
     setGad7Answers(Array(7).fill(null))
     setGeneratedReport('')
+    setAttendanceId(Date.now().toString()) // <-- Cria novo atendimento no histórico
   }
 
   const handlePrint = () => window.print()
@@ -510,14 +576,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* UNIDADE DE ATENDIMENTO / HOSPITAL FIXA NO CABEÇALHO */}
       {docHospital && (
         <div className="mb-2 text-xs font-black text-primary-blue bg-blue-50 px-3 py-1.5 rounded-lg uppercase tracking-wide border border-blue-100 flex items-center gap-2">
           <Building2 size={14} className="text-action-mint" /> Unidade / Hospital: {docHospital}
         </div>
       )}
 
-      {/* ALERGIAS REGISTRADAS NO CABEÇALHO DA RECEITA PARA ALERTA FÍSICO */}
       {patientAllergiesInput && (
         <div className="mb-3 text-xs font-bold text-red-700 bg-red-50 px-3 py-1.5 rounded-lg uppercase tracking-wide border border-red-200 flex items-center gap-2">
           <AlertTriangle size={14} className="text-red-600 animate-pulse" /> Alergias Conhecidas: {patientAllergiesInput}
@@ -562,7 +626,6 @@ export default function Dashboard() {
         }
       `}} />
 
-      {/* ÁREA DE IMPRESSÃO DA RECEITA */}
       <div className="hidden print:flex w-full h-screen bg-white text-black font-sans">
         <ReceituarioVia titulo="1ª VIA - PACIENTE" />
         <div className="w-px bg-dashed border-r-2 border-dashed border-gray-300 h-[90%] my-auto"></div>
@@ -571,6 +634,7 @@ export default function Dashboard() {
 
       <div className="print:hidden h-screen flex flex-col bg-bg-ice overflow-hidden font-sans text-primary-blue relative">
         
+        {/* Modais omitidos no resumo, mas iguais ao seu original (Email, Salvar Favorito) */}
         {showEmailModal && (
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
@@ -658,6 +722,12 @@ export default function Dashboard() {
                 <li onClick={() => setActiveTab('prescricao')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'prescricao' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <FileText size={20} className={activeTab === 'prescricao' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Nova Prescrição</span>
                 </li>
+                
+                {/* NOVA ABA HISTÓRICO */}
+                <li onClick={() => setActiveTab('historico')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'historico' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <History size={20} className={activeTab === 'historico' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Histórico do Dia</span>
+                </li>
+                
                 <li onClick={() => setActiveTab('especialistas')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'especialistas' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <Stethoscope size={20} className={activeTab === 'especialistas' ? 'text-action-mint' : ''} /> 
                   <span className="hidden md:flex items-center justify-between flex-1 font-bold">
@@ -697,6 +767,7 @@ export default function Dashboard() {
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
               <h1 className="text-2xl font-bold tracking-tight">
                 {activeTab === 'prescricao' && 'Pronto Atendimento & Prescrição'}
+                {activeTab === 'historico' && 'Histórico de Atendimentos do Dia'}
                 {activeTab === 'especialistas' && 'Ferramentas por Especialidade'}
                 {activeTab === 'receitas' && 'Protocolos e Receitas Prontas'}
                 {activeTab === 'meus-protocolos' && 'Meus Protocolos (Favoritos)'}
@@ -704,6 +775,57 @@ export default function Dashboard() {
                 {activeTab === 'configuracoes' && 'Configuração do Perfil e Carimbo'}
               </h1>
             </header>
+
+            {/* NOVA ABA HISTÓRICO VIEW */}
+            {activeTab === 'historico' && (
+              <div className="flex-1 bg-white rounded-3xl p-6 overflow-y-auto">
+                <div className="flex items-center justify-between mb-6 border-b pb-4">
+                  <h3 className="text-xl font-bold text-primary-blue">Atendimentos das Últimas 24h</h3>
+                  <span className="bg-blue-50 text-primary-blue border border-blue-100 px-4 py-1.5 rounded-xl text-sm font-bold flex items-center gap-2">
+                    <History size={16} /> {historyData.length} registros salvos
+                  </span>
+                </div>
+                
+                {historyData.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-gray-400 mt-10">
+                    <History size={64} className="mb-4 text-gray-200" />
+                    <h3 className="text-xl font-bold text-primary-blue mb-2">Nenhum atendimento recente</h3>
+                    <p className="text-sm">Os atendimentos são salvos automaticamente aqui e expiram após 24h.</p>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {historyData.map(item => (
+                      <div key={item.id} className="bg-bg-ice border border-gray-200 rounded-2xl p-5 flex flex-col justify-between hover:border-action-mint hover:shadow-sm transition-all group">
+                        <div className="mb-4">
+                          <h4 className="font-black text-lg text-primary-blue uppercase truncate">{item.patientName || 'PACIENTE NÃO INFORMADO'}</h4>
+                          <p className="text-xs text-gray-500 font-medium flex items-center gap-1 mt-1">
+                            <Clock size={12} /> {new Date(item.lastUpdated).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} — {item.prescriptions.length} medicamento(s) prescrito(s)
+                          </p>
+                          {item.patientAllergiesInput && (
+                             <p className="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded mt-2 inline-block font-bold truncate max-w-full">
+                               Alergia: {item.patientAllergiesInput}
+                             </p>
+                          )}
+                        </div>
+                        <button 
+                          onClick={() => {
+                            setPatientName(item.patientName || '')
+                            setPrescriptionDate(item.prescriptionDate || '')
+                            setPatientAllergiesInput(item.patientAllergiesInput || '')
+                            setPrescriptions(item.prescriptions || [])
+                            setAttendanceId(item.id)
+                            setActiveTab('prescricao')
+                          }}
+                          className="bg-white border border-gray-200 text-primary-blue px-4 py-2 rounded-xl text-sm font-bold shadow-sm group-hover:bg-primary-blue group-hover:text-white transition-colors text-center"
+                        >
+                          Restaurar Prontuário
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ABA DE PRESCRIÇÃO */}
             {activeTab === 'prescricao' && (
@@ -788,7 +910,6 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* CAMPO DE ALERGIAS DO PACIENTE */}
                     <div>
                       <label className="block text-xs font-bold text-red-600 mb-1 flex items-center gap-1">
                         <AlertTriangle size={14} /> ALERGIAS DO PACIENTE (SEPARADAS POR VÍRGULA)
@@ -800,18 +921,6 @@ export default function Dashboard() {
                         placeholder="Ex: Dipirona, Penicilina, AINEs..." 
                         className="w-full bg-red-50/50 border border-red-200 rounded-xl px-4 py-2 outline-none font-bold text-red-700 text-sm focus:border-red-400" 
                       />
-                    </div>
-
-                    <div className="bg-bg-ice p-3 rounded-xl border border-gray-200 space-y-2">
-                      <p className="text-[11px] font-black text-primary-blue uppercase tracking-wide">Prontuário SOAP Adaptado — {docSpecialty || 'CLÍNICO GERAL'}</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input type="text" placeholder="S — Queixa principal / Subjetivo" className="bg-white border rounded-lg p-1.5 text-xs outline-none" />
-                        <input type="text" placeholder="O — Sinais Vitais / Exame Físico" className="bg-white border rounded-lg p-1.5 text-xs outline-none" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input type="text" placeholder="A — Avaliação / CID-10" className="bg-white border rounded-lg p-1.5 text-xs outline-none" />
-                        <input type="text" placeholder="P — Conduta / Plano" className="bg-white border rounded-lg p-1.5 text-xs outline-none" />
-                      </div>
                     </div>
                   </div>
 
@@ -826,10 +935,26 @@ export default function Dashboard() {
                              <li key={p.id} className="flex gap-4 group">
                                <span className="font-black text-lg text-gray-300 pt-1">{String(index + 1).padStart(2, '0')}</span>
                                <div className="flex-1 border-b border-gray-200 pb-3 relative">
-                                 <input className="font-bold text-primary-blue w-full outline-none" defaultValue={p.name} />
+                                 {/* CAMPOS CONTROLADOS PELO ESTADO PARA EDIÇÃO EM TEMPO REAL */}
+                                 <input 
+                                   className="font-bold text-primary-blue w-full outline-none bg-transparent" 
+                                   value={p.name} 
+                                   onChange={(e) => updatePrescriptionField(p.id, 'name', e.target.value)} 
+                                   placeholder="Nome do medicamento ou produto..."
+                                 />
                                  <div className="flex items-center gap-2 mt-1">
-                                   <input className="outline-none bg-gray-50 px-2 py-1 rounded w-16 text-sm" defaultValue={p.dose} />
-                                   <input className="outline-none bg-gray-50 px-2 py-1 rounded w-full text-sm" defaultValue={p.freq} />
+                                   <input 
+                                     className="outline-none bg-gray-50 px-2 py-1 rounded w-16 text-sm border border-transparent focus:border-action-mint transition-colors" 
+                                     value={p.dose} 
+                                     onChange={(e) => updatePrescriptionField(p.id, 'dose', e.target.value)} 
+                                     placeholder="Via" 
+                                   />
+                                   <input 
+                                     className="outline-none bg-gray-50 px-2 py-1 rounded w-full text-sm border border-transparent focus:border-action-mint transition-colors" 
+                                     value={p.freq} 
+                                     onChange={(e) => updatePrescriptionField(p.id, 'freq', e.target.value)} 
+                                     placeholder="Posologia / Frequência de uso" 
+                                   />
                                  </div>
                                  <button onClick={() => setPrescriptions(prescriptions.filter(x => x.id !== p.id))} className="absolute top-1 right-0 text-gray-300 hover:text-red-500"><X size={16}/></button>
                                </div>
@@ -839,12 +964,19 @@ export default function Dashboard() {
                       )}
                   </div>
 
-                  <div className="p-4 border-t flex items-center justify-between bg-gray-50 shrink-0">
-                    <button onClick={() => setShowSaveFavoriteModal(true)} disabled={prescriptions.length === 0} className="px-4 py-2.5 rounded-xl text-yellow-600 hover:bg-yellow-100 font-bold flex items-center gap-2 transition-colors disabled:opacity-50">
-                      <Star size={18} /> <span className="hidden md:inline">Salvar Favorito</span>
-                    </button>
-                    <div className="flex gap-2">
-                      <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold transition-colors">Limpar</button>
+                  {/* RODAPÉ E BOTÃO DE MEDICAMENTO LIVRE */}
+                  <div className="p-4 border-t flex flex-col lg:flex-row items-center justify-between bg-gray-50 shrink-0 gap-4">
+                    <div className="flex gap-2 w-full lg:w-auto">
+                      <button onClick={() => setShowSaveFavoriteModal(true)} disabled={prescriptions.length === 0} className="px-4 py-2.5 rounded-xl text-yellow-600 border border-yellow-200 bg-white hover:bg-yellow-50 font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 flex-1 lg:flex-none">
+                        <Star size={18} /> <span className="hidden md:inline">Salvar Favorito</span>
+                      </button>
+                      <button onClick={handleAddCustomMedicine} className="px-4 py-2.5 rounded-xl border border-primary-blue bg-blue-50 text-primary-blue hover:bg-primary-blue hover:text-white font-bold flex items-center justify-center gap-2 transition-colors flex-1 lg:flex-none shadow-sm">
+                        <Plus size={18} /> <span className="hidden md:inline">Medicamento Livre</span><span className="md:hidden">Livre</span>
+                      </button>
+                    </div>
+                    
+                    <div className="flex gap-2 w-full lg:w-auto justify-end">
+                      <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 bg-white border border-gray-200 hover:bg-gray-100 font-bold transition-colors">Limpar</button>
                       <button onClick={() => setShowEmailModal(true)} className="px-4 md:px-5 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 shadow-md hover:bg-[#111e38] transition-colors"><Mail size={16} /> Enviar</button>
                       <button onClick={handlePrint} className="px-4 md:px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d] transition-colors"><Printer size={16} /> Imprimir</button>
                     </div>
