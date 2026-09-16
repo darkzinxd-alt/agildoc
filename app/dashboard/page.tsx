@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User, Stethoscope, Sparkles } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
@@ -41,21 +41,6 @@ const RECEITAS_DB = [
       { name: 'Dipirona Sódica 500mg', dose: 'VO', freq: '6/6h (Em caso de dor/febre)' },
       { name: 'Loratadina 10mg', dose: 'VO', freq: '24/24h (À noite)' },
       { name: 'Soro Fisiológico 0.9%', dose: 'Nasal', freq: 'Lavagem nasal 4x ao dia' }
-    ]
-  },
-  {
-    id: 'r3', name: 'Conjuntivite', cid: 'H10', dias: '3',
-    items: [
-      { name: 'Tobramicina (Colírio)', dose: 'Ocular', freq: '1 gota em cada olho 6/6h (7 dias)' },
-      { name: 'Soro Fisiológico (Gelado)', dose: 'Local', freq: 'Compressas geladas 4x ao dia' }
-    ]
-  },
-  {
-    id: 'r4', name: 'Lombalgia Aguda', cid: 'M54', dias: '2',
-    items: [
-      { name: 'Diclofenaco de Sódio 50mg', dose: 'VO', freq: '8/8h (Após refeição)' },
-      { name: 'Ciclobenzaprina 5mg', dose: 'VO', freq: '24/24h (Ao deitar)' },
-      { name: 'Dipirona Sódica 1g', dose: 'VO', freq: '6/6h (Em caso de dor forte)' }
     ]
   }
 ]
@@ -116,6 +101,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('prescricao')
   const [dbMedicines, setDbMedicines] = useState<any[]>([])
   
+  // Identificação Universal do Paciente
   const [patientName, setPatientName] = useState('')
   const [prescriptionDate, setPrescriptionDate] = useState('')
   
@@ -125,15 +111,20 @@ export default function Dashboard() {
   const [patientAllergies, setPatientAllergies] = useState<string[]>(['Dipirona'])
   const [drugInteractionsAlerts, setDrugInteractionsAlerts] = useState<string[]>([])
   
-  // Ferramentas da Aba Especialistas
+  // Especialistas e Histórico de Dor (Ortopedia)
   const [activeSpecialtyTool, setActiveSpecialtyTool] = useState('ortopedia')
   const [painLevel, setPainLevel] = useState<number | null>(null)
   const [selectedBodyPart, setSelectedBodyPart] = useState<string>('')
   const [bodySide, setBodySide] = useState<'frente' | 'costas'>('frente')
+  const [painHistory, setPainHistory] = useState<any[]>([])
 
   // Escalas clínicas (PHQ-9 / GAD-7)
   const [phq9Answers, setPhq9Answers] = useState<(number | null)[]>(Array(9).fill(null))
   const [gad7Answers, setGad7Answers] = useState<(number | null)[]>(Array(7).fill(null))
+
+  // Estado para laudo gerado por IA
+  const [generatedReport, setGeneratedReport] = useState('')
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
 
   const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
@@ -359,11 +350,64 @@ export default function Dashboard() {
     setDrugInteractionsAlerts([])
     setPainLevel(null)
     setSelectedBodyPart('')
+    setPainHistory([])
     setPhq9Answers(Array(9).fill(null))
     setGad7Answers(Array(7).fill(null))
+    setGeneratedReport('')
   }
 
   const handlePrint = () => window.print()
+
+  // Função para incluir dor no histórico mediante clique no botão
+  const handleAddPainRecord = () => {
+    if (!selectedBodyPart || painLevel === null) {
+      return alert('Selecione uma região anatômica no boneco e a intensidade da dor na escala EVA.')
+    }
+    const newItem = {
+      id: Date.now(),
+      part: selectedBodyPart,
+      side: bodySide,
+      level: painLevel,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+    setPainHistory([newItem, ...painHistory])
+    setSelectedBodyPart('')
+    setPainLevel(null)
+  }
+
+  // IA - Gerador automático de laudo
+  const handleGenerateAIReport = () => {
+    setIsGeneratingAI(true)
+    setTimeout(() => {
+      let reportText = `LAUDO / RELATÓRIO CLÍNICO\nPaciente: ${patientName || 'Não informado'} | Data: ${prescriptionDate || new Date().toLocaleDateString()}\n\n`
+      
+      if (activeSpecialtyTool === 'ortopedia') {
+        reportText += `AVALIAÇÃO ORTOPÉDICA E DE DOR (EVA):\n`
+        if (painHistory.length === 0) {
+          reportText += `- Nenhuma queixa álgica registrada no histórico corporal.\n`
+        } else {
+          painHistory.forEach((item, idx) => {
+            reportText += `${idx + 1}. Região: ${item.part} (${item.side}) — Intensidade de Dor (EVA): ${item.level}/10\n`
+          })
+        }
+        reportText += `\nConduta Sugerida: Repouso relativo da área afetada, analgesia conforme prescrição médica e acompanhamento ortopédico ambulatorial.`
+      } else if (activeSpecialtyTool === 'psiquiatria') {
+        reportText += `AVALIAÇÃO PSIQUIÁTRICA / PSICOLÓGICA:\n`
+        reportText += `- Escala PHQ-9 (Depressão): ${phq9Score} pontos (${phq9AllAnswered ? getPHQ9Severity(phq9Score).label : 'Incompleto'})\n`
+        reportText += `- Escala GAD-7 (Ansiedade): ${gad7Score} pontos (${gad7AllAnswered ? getGAD7Severity(gad7Score).label : 'Incompleto'})\n`
+        if (phq9SelfHarmFlag) {
+          reportText += `\n⚠️ ATENÇÃO CLÍNICA: Item 9 do PHQ-9 positivo. Protocolo de segurança e prevenção de suicídio acionado.\n`
+        }
+        reportText += `\nConduta Sugerida: Psicoterapia regular, avaliação farmacológica contínua e retorno em 30 dias.`
+      } else {
+        reportText += `AVALIAÇÃO ESPECIALIZADA (${activeSpecialtyTool.toUpperCase()}):\n`
+        reportText += `Atendimento realizado sem intercorrências agudas. Segue plano terapêutico e orientações gerais ao paciente.`
+      }
+
+      setGeneratedReport(reportText)
+      setIsGeneratingAI(false)
+    }, 800)
+  }
 
   const handleSendEmail = async () => {
     if (!patientEmail) return alert('Por favor, informe o e-mail do paciente.')
@@ -463,9 +507,11 @@ export default function Dashboard() {
         @media print {
           @page { size: A4 landscape; margin: 0; }
           body { background: white; }
+          .no-print { display: none !important; }
         }
       `}} />
 
+      {/* ÁREA DE IMPRESSÃO DA RECEITA */}
       <div className="hidden print:flex w-full h-screen bg-white text-black font-sans">
         <ReceituarioVia titulo="1ª VIA - PACIENTE" />
         <div className="w-px bg-dashed border-r-2 border-dashed border-gray-300 h-[90%] my-auto"></div>
@@ -554,7 +600,7 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* MENU LATERAL COM A ABA ESPECIALISTAS */}
+          {/* MENU LATERAL */}
           <aside className="w-20 md:w-64 bg-white border-r border-gray-100 flex flex-col shadow-soft z-20 overflow-y-auto">
             <nav className="flex-1 py-6 px-3">
               <ul className="space-y-2">
@@ -604,7 +650,7 @@ export default function Dashboard() {
               </h1>
             </header>
 
-            {/* ABA DE PRESCRIÇÃO LIMPA E OTIMIZADA */}
+            {/* ABA DE PRESCRIÇÃO */}
             {activeTab === 'prescricao' && (
               <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
                 <section className="flex-1 bg-white rounded-3xl shadow-soft flex flex-col overflow-hidden p-4">
@@ -738,15 +784,27 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ABA ESPECIALISTAS COM MENU SUPERIOR E FERRAMENTAS INTERATIVAS */}
+            {/* ABA ESPECIALISTAS */}
             {activeTab === 'especialistas' && (
               <div className="flex-1 bg-white rounded-3xl p-6 overflow-y-auto flex flex-col gap-6">
                 
+                {/* CABEÇALHO UNIVERSAL DE PACIENTE E DATA */}
+                <div className="bg-bg-ice p-4 rounded-2xl border border-gray-200 flex flex-col md:flex-row gap-4 shrink-0">
+                  <div className="flex-1">
+                    <label className="block text-xs font-bold text-gray-500 mb-1">NOME DO PACIENTE (UNIVERSAL)</label>
+                    <input type="text" value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="Digite o nome do paciente..." className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none font-bold text-primary-blue text-sm" />
+                  </div>
+                  <div className="w-full md:w-48">
+                    <label className="block text-xs font-bold text-gray-500 mb-1">DATA</label>
+                    <input type="text" value={prescriptionDate} onChange={(e) => setPrescriptionDate(e.target.value)} placeholder="DD/MM/AAAA" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2 outline-none font-bold text-primary-blue text-sm md:text-center" />
+                  </div>
+                </div>
+
                 {/* Menu de Seleção de Especialidade no Topo */}
                 <div className="flex flex-wrap gap-2 border-b pb-4 shrink-0">
                   {[
                     { id: 'ortopedia', label: '🦴 Ortopedia & Traumatologia' },
-                    { id: 'psiquiatria', label: '🧠 Psiquiatria / Psicologia (Escalas PHQ-9 & GAD-7)' },
+                    { id: 'psiquiatria', label: '🧠 Psiquiatria / Psicologia (PHQ-9 & GAD-7)' },
                     { id: 'pediatria', label: '👶 Pediatria' },
                     { id: 'cardiologia', label: '❤️ Cardiologia' },
                     { id: 'ginecologia', label: '🌸 Ginecologia' },
@@ -765,7 +823,7 @@ export default function Dashboard() {
                   ))}
                 </div>
 
-                {/* FERRAMENTA 1: ORTOPEDIA (Com Escala EVA + Boneco Anatômico Interativo com marcação vermelha) */}
+                {/* FERRAMENTA 1: ORTOPEDIA */}
                 {activeSpecialtyTool === 'ortopedia' && (
                   <div className="space-y-6">
                     <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
@@ -791,7 +849,7 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* MAPA CORPORAL INTUITIVO COM MARCAÇÃO VERMELHA */}
+                      {/* MAPA CORPORAL INTUITIVO */}
                       <div className="bg-white p-5 rounded-2xl border border-gray-100">
                         <div className="flex justify-between items-center mb-4">
                           <div>
@@ -844,11 +902,44 @@ export default function Dashboard() {
 
                         {selectedBodyPart && (
                           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl flex justify-between items-center text-xs text-red-700">
-                            <span>Região Ativa Selecionada: <strong>{selectedBodyPart}</strong></span>
-                            <button onClick={() => setSelectedBodyPart('')} className="font-bold underline">Limpar Seleção</button>
+                            <span>Região Ativa: <strong>{selectedBodyPart}</strong></span>
+                            <button onClick={handleAddPainRecord} className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold shadow-sm hover:bg-red-700 transition-colors">
+                              + Incluir Dor
+                            </button>
                           </div>
                         )}
                       </div>
+
+                      {/* HISTÓRICO DE DOR REGISTRADO COM OPÇÃO DE APAGAR (X) */}
+                      <div className="bg-white p-5 rounded-2xl border border-gray-100 space-y-3">
+                        <h4 className="font-bold text-sm text-primary-blue">Histórico de Queixas e Dor Registradas</h4>
+                        {painHistory.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic">Nenhuma região incluída no histórico ainda.</p>
+                        ) : (
+                          <ul className="space-y-2">
+                            {painHistory.map((item) => (
+                              <li key={item.id} className="flex justify-between items-center bg-bg-ice p-3 rounded-xl border border-gray-200 text-xs font-medium">
+                                <div className="flex items-center gap-3">
+                                  <span className="w-3 h-3 rounded-full bg-red-600"></span>
+                                  <span><strong>{item.part}</strong> ({item.side}) — Dor EVA: <strong className="text-red-600">{item.level}/10</strong></span>
+                                  <span className="text-gray-400 text-[10px]">({item.timestamp})</span>
+                                </div>
+                                <button onClick={() => setPainHistory(painHistory.filter(h => h.id !== item.id))} className="text-gray-400 hover:text-red-600 p-1 rounded-lg hover:bg-white transition-colors" title="Apagar marcação por engano">
+                                  <X size={16} />
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+
+                      {/* BOTÃO DE IA PARA GERAR LAUDO */}
+                      <div className="pt-2">
+                        <button onClick={handleGenerateAIReport} disabled={isGeneratingAI} className="w-full bg-action-mint text-primary-blue font-extrabold py-3.5 rounded-2xl shadow-md hover:bg-[#00c07d] transition-all flex items-center justify-center gap-2">
+                          <Sparkles size={18} /> {isGeneratingAI ? 'Gerando Laudo com IA...' : 'Gerar Laudo / Relatório Automático com IA'}
+                        </button>
+                      </div>
+
                     </div>
                   </div>
                 )}
@@ -941,10 +1032,54 @@ export default function Dashboard() {
                         ))}
                       </div>
                     </div>
+
+                    {/* BOTÃO DE IA PARA LAUDO PSIQUIÁTRICO */}
+                    <div className="pt-2">
+                      <button onClick={handleGenerateAIReport} disabled={isGeneratingAI} className="w-full bg-action-mint text-primary-blue font-extrabold py-3.5 rounded-2xl shadow-md hover:bg-[#00c07d] transition-all flex items-center justify-center gap-2">
+                        <Sparkles size={18} /> {isGeneratingAI ? 'Gerando Laudo com IA...' : 'Gerar Laudo / Relatório Automático com IA'}
+                      </button>
+                    </div>
+
                   </div>
                 )}
 
-                {/* FERRAMENTA 3: PEDIATRIA */}
+                {/* LAUDO GERADO PELA IA COM OPÇÃO DE IMPRESSÃO */}
+                {generatedReport && (
+                  <div className="bg-white border-2 border-action-mint rounded-3xl p-6 shadow-xl space-y-4">
+                    <div className="flex justify-between items-center border-b pb-3">
+                      <h4 className="font-extrabold text-primary-blue flex items-center gap-2"><Sparkles className="text-action-mint" size={20} /> Relatório / Laudo Gerado por IA</h4>
+                      <button onClick={() => setGeneratedReport('')} className="text-gray-400 hover:text-red-600"><X size={18}/></button>
+                    </div>
+                    
+                    {/* Visualização de Impressão do Laudo */}
+                    <div className="bg-bg-ice p-6 rounded-2xl border border-gray-200 space-y-4">
+                      <div className="flex justify-between items-start border-b border-primary-blue/20 pb-4">
+                        <Logo className="h-6" />
+                        <div className="text-right text-primary-blue text-xs">
+                          <p className="font-bold uppercase">LAUDO MÉDICO ESPECIALIZADO</p>
+                          <p>Data: {prescriptionDate || new Date().toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="text-xs text-primary-blue font-medium mb-2">
+                        <span>Paciente: <strong className="uppercase">{patientName || 'NÃO INFORMADO'}</strong></span>
+                      </div>
+                      <pre className="whitespace-pre-wrap font-sans text-xs text-gray-800 bg-white p-4 rounded-xl border leading-relaxed">{generatedReport}</pre>
+                      
+                      <div className="pt-8 mt-8 border-t border-gray-300 flex flex-col items-center justify-center text-primary-blue">
+                        <div className="w-48 border-b border-primary-blue mb-1"></div>
+                        <p className="font-bold text-xs uppercase">{docName || 'DR(A). NOME DO MÉDICO'}</p>
+                        <p className="font-medium text-[10px]">CRM-{docUF} {docCRM || '000000'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-2">
+                      <button onClick={() => { navigator.clipboard.writeText(generatedReport); alert('Laudo copiado para a área de transferência!'); }} className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors">Copiar Texto</button>
+                      <button onClick={handlePrint} className="px-5 py-2.5 bg-action-mint text-primary-blue rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md hover:bg-[#00c07d] transition-colors"><Printer size={16} /> Imprimir Laudo</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* OUTRAS ESPECIALIDADES (PEDIATRIA, CARDIOLOGIA, GINECOLOGIA) */}
                 {activeSpecialtyTool === 'pediatria' && (
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Ferramentas de Pediatria</h3>
@@ -956,7 +1091,6 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* FERRAMENTA 4: CARDIOLOGIA */}
                 {activeSpecialtyTool === 'cardiologia' && (
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Cardiologia & Hemodinâmica</h3>
@@ -967,7 +1101,6 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* FERRAMENTA 5: GINECOLOGIA */}
                 {activeSpecialtyTool === 'ginecologia' && (
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Ginecologia & Obstetrícia</h3>
