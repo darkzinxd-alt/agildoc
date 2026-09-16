@@ -73,11 +73,13 @@ export default function Dashboard() {
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
   const [isExpired, setIsExpired] = useState(false)
   
-  const [docName, setDocName] = useState('THIAGO FERREIRA DAMASCENO SILVA')
-  const [docCRM, setDocCRM] = useState('1252648')
+  // Dados do Carimbo começam EM BRANCO para novos médicos
+  const [docName, setDocName] = useState('')
+  const [docCRM, setDocCRM] = useState('')
   const [docUF, setDocUF] = useState('RJ')
-  const [docSpecialty, setDocSpecialty] = useState('MÉDICO CLÍNICO GERAL')
+  const [docSpecialty, setDocSpecialty] = useState('')
   const [docAvatar, setDocAvatar] = useState('')
+  const [userEmail, setUserEmail] = useState('')
   const [isSaved, setIsSaved] = useState(false)
 
   const [showEmailModal, setShowEmailModal] = useState(false)
@@ -115,26 +117,29 @@ export default function Dashboard() {
     }
   }, [])
   
-  useEffect(() => {
-    const savedName = localStorage.getItem('agildoc_name')
-    const savedCRM = localStorage.getItem('agildoc_crm')
-    const savedUF = localStorage.getItem('agildoc_uf')
-    const savedSpecialty = localStorage.getItem('agildoc_specialty')
-    const savedAvatar = localStorage.getItem('agildoc_avatar')
-    
-    if (savedName) setDocName(savedName)
-    if (savedCRM) setDocCRM(savedCRM)
-    if (savedUF) setDocUF(savedUF)
-    if (savedSpecialty) setDocSpecialty(savedSpecialty)
-    if (savedAvatar) setDocAvatar(savedAvatar)
-  }, [])
-  
+  // Carrega os dados reais do usuário logado via Supabase Auth
   useEffect(() => {
     async function loadUserData() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         
         if (user) {
+          setUserEmail(user.email || '')
+          
+          // Tenta carregar as configurações salvas especificamente para este usuário no localStorage com ID único
+          const userId = user.id
+          const savedName = localStorage.getItem(`agildoc_name_${userId}`)
+          const savedCRM = localStorage.getItem(`agildoc_crm_${userId}`)
+          const savedUF = localStorage.getItem(`agildoc_uf_${userId}`)
+          const savedSpecialty = localStorage.getItem(`agildoc_specialty_${userId}`)
+          const savedAvatar = localStorage.getItem(`agildoc_avatar_${userId}`)
+          
+          if (savedName) setDocName(savedName)
+          if (savedCRM) setDocCRM(savedCRM)
+          if (savedUF) setDocUF(savedUF)
+          if (savedSpecialty) setDocSpecialty(savedSpecialty)
+          if (savedAvatar) setDocAvatar(savedAvatar)
+
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
           
           if (profile) {
@@ -228,12 +233,16 @@ export default function Dashboard() {
     }
   }
 
-  const handleSaveProfile = () => {
-    localStorage.setItem('agildoc_name', docName)
-    localStorage.setItem('agildoc_crm', docCRM)
-    localStorage.setItem('agildoc_uf', docUF)
-    localStorage.setItem('agildoc_specialty', docSpecialty)
-    if (docAvatar) localStorage.setItem('agildoc_avatar', docAvatar)
+  const handleSaveProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      // Salva no localStorage atrelando ao ID único do usuário logado
+      localStorage.setItem(`agildoc_name_${user.id}`, docName)
+      localStorage.setItem(`agildoc_crm_${user.id}`, docCRM)
+      localStorage.setItem(`agildoc_uf_${user.id}`, docUF)
+      localStorage.setItem(`agildoc_specialty_${user.id}`, docSpecialty)
+      if (docAvatar) localStorage.setItem(`agildoc_avatar_${user.id}`, docAvatar)
+    }
     
     setIsSaved(true)
     setTimeout(() => setIsSaved(false), 3000)
@@ -384,9 +393,9 @@ export default function Dashboard() {
       
       <div className="mt-auto pt-8 border-t border-gray-300 flex flex-col items-center justify-center text-primary-blue">
         <div className="w-64 border-b border-primary-blue mb-2"></div>
-        <p className="font-bold text-lg uppercase tracking-wide">{docName}</p>
-        <p className="font-medium text-sm">CRM-{docUF} {docCRM}</p>
-        <p className="font-bold text-sm tracking-widest mt-1 uppercase">{docSpecialty}</p>
+        <p className="font-bold text-lg uppercase tracking-wide">{docName || 'DR(A). NOME DO MÉDICO'}</p>
+        <p className="font-medium text-sm">CRM-{docUF} {docCRM || '000000'}</p>
+        <p className="font-bold text-sm tracking-widest mt-1 uppercase">{docSpecialty || 'ESPECIALIDADE MÉDICA'}</p>
       </div>
     </div>
   )
@@ -458,7 +467,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Barra de Status do Acesso / Contador de Teste */}
         <div className={`text-white text-xs md:text-sm py-2 px-6 flex justify-between items-center shadow-md z-40 transition-colors ${isExpired ? 'bg-red-600 animate-pulse' : 'bg-primary-blue'}`}>
           <span className="flex items-center gap-2 font-medium">
             <Clock size={16} className={isExpired ? 'text-white' : 'text-action-mint'} /> 
@@ -469,6 +477,7 @@ export default function Dashboard() {
           </button>
         </div>
 
+        {/* Barra Superior com E-mail Real e Avatar do Médico */}
         <div className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-30">
           <Logo className="h-8" />
           <div className="flex items-center gap-4">
@@ -476,9 +485,11 @@ export default function Dashboard() {
               {docAvatar ? (
                 <img src={docAvatar} alt="Perfil" className="w-9 h-9 rounded-full object-cover border-2 border-primary-blue shadow-sm" />
               ) : (
-                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary-blue to-[#2A416F] flex items-center justify-center text-white font-bold">TF</div>
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary-blue to-[#2A416F] flex items-center justify-center text-white font-bold text-xs">
+                  {userEmail ? userEmail.substring(0, 2).toUpperCase() : 'DR'}
+                </div>
               )}
-              <span className="hidden md:inline font-bold text-sm text-primary-blue">{docName.split(' ')[0]}</span>
+              <span className="hidden md:inline font-bold text-sm text-primary-blue">{userEmail || 'Carregando...'}</span>
             </div>
             
             <button onClick={handleLogout} className="flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-red-100 transition-colors" title="Sair da Conta">
@@ -754,7 +765,7 @@ export default function Dashboard() {
 
                    <div>
                      <label className="block text-sm font-bold text-gray-600 mb-2">Nome do Médico (Sairá no rodapé da receita)</label>
-                     <input type="text" value={docName} onChange={(e) => setDocName(e.target.value.toUpperCase())} className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-bold uppercase" />
+                     <input type="text" value={docName} onChange={(e) => setDocName(e.target.value.toUpperCase())} placeholder="Ex: DR(A). SEU NOME COMPLETO" className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-bold uppercase" />
                    </div>
                    
                    <div className="grid grid-cols-2 gap-4">
@@ -796,7 +807,7 @@ export default function Dashboard() {
                    </div>
 
                    <div className="pt-6 border-t border-gray-100 flex items-center gap-4">
-                     <button onClick={handleSaveProfile} className="bg-action-mint text-primary-blue font-extrabold px8 py-3 rounded-xl shadow-md hover:bg-[#00c07d] transition-colors flex items-center gap-2">
+                     <button onClick={handleSaveProfile} className="bg-action-mint text-primary-blue font-extrabold px-8 py-3 rounded-xl shadow-md hover:bg-[#00c07d] transition-colors flex items-center gap-2">
                        <Save size={20} /> Salvar Configurações
                      </button>
                      {isSaved && <span className="text-action-mint font-bold flex items-center gap-1 animate-pulse"><CheckCircle size={18} /> Salvo com sucesso!</span>}
