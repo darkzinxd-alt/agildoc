@@ -811,11 +811,10 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ABA ESPECIALISTAS (VISUALIZAÇÃO LIVRE, INTERAÇÃO BLOQUEADA PARA BÁSICO) */}
+            {/* ABA ESPECIALISTAS */}
             {activeTab === 'especialistas' && (
               <div className="flex-1 bg-white rounded-3xl p-6 overflow-y-auto flex flex-col gap-6 relative">
                 
-                {/* BANNER DE UPGRADE CASO SEJA PLANO BÁSICO */}
                 {userPlanTier === 'basico' && (
                   <div className="bg-gradient-to-r from-primary-blue to-[#2A416F] text-white p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-md shrink-0">
                     <div className="flex items-center gap-3">
@@ -833,7 +832,6 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* CABEÇALHO UNIVERSAL DE PACIENTE E DATA */}
                 <div className="bg-bg-ice p-4 rounded-2xl border border-gray-200 flex flex-col md:flex-row gap-4 shrink-0">
                   <div className="flex-1">
                     <label className="block text-xs font-bold text-gray-500 mb-1">NOME DO PACIENTE (UNIVERSAL)</label>
@@ -845,7 +843,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Menu de Seleção de Especialidade no Topo */}
                 <div className="flex flex-wrap gap-2 border-b pb-4 shrink-0">
                   {[
                     { id: 'ortopedia', label: '🦴 Ortopedia & Traumatologia' },
@@ -868,7 +865,6 @@ export default function Dashboard() {
                   ))}
                 </div>
 
-                {/* FERRAMENTA 1: ORTOPEDIA */}
                 {activeSpecialtyTool === 'ortopedia' && (
                   <div className="space-y-6">
                     <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
@@ -901,7 +897,6 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* MAPA CORPORAL INTUITIVO */}
                       <div className="bg-white p-5 rounded-2xl border border-gray-100">
                         <div className="flex justify-between items-center mb-4">
                           <div>
@@ -937,7 +932,7 @@ export default function Dashboard() {
                             </div>
                           ) : (
                             <div className="w-full grid grid-cols-2 gap-3">
-                              {['Cabeça (Posterior)', 'Coluna Cervical', 'Coluna Dorsal', 'Coluna Lombar', 'Ombro Costas D.', 'Ombro Costas E.', 'Glúteo / Região Sacra', 'Coxa / Perna D.', 'Coxa / Perna E.', 'Calcanhar / Pé D.' , 'Calcanhar / Pé E.'].map((part) => (
+                              {['Cabeça (Posterior)', 'Coluna Cervical', 'Coluna Dorsal', 'Coluna Lombar', 'Ombro Costas D.', 'Ombro Costas E.', 'Glúteo / Região Sacra', 'Coxa / Perna D.', 'Coxa / Perna E.', 'Calcanhar / Pé D.', 'Calcanhar / Pé E.'].map((part) => (
                                 <button
                                   key={part}
                                   onClick={() => {
@@ -968,7 +963,6 @@ export default function Dashboard() {
                         )}
                       </div>
 
-                      {/* HISTÓRICO DE DOR REGISTRADO */}
                       <div className="bg-white p-5 rounded-2xl border border-gray-100 space-y-3">
                         <h4 className="font-bold text-sm text-primary-blue">Histórico de Queixas e Dor Registradas</h4>
                         {painHistory.length === 0 ? (
@@ -991,7 +985,6 @@ export default function Dashboard() {
                         )}
                       </div>
 
-                      {/* BOTÃO DE IA PARA GERAR LAUDO */}
                       <div className="pt-2">
                         <button onClick={handleGenerateAIReport} disabled={isGeneratingAI} className="w-full bg-action-mint text-primary-blue font-extrabold py-3.5 rounded-2xl shadow-md hover:bg-[#00c07d] transition-all flex items-center justify-center gap-2">
                           {userPlanTier === 'basico' ? <Lock size={18} /> : <Sparkles size={18} />} 
@@ -1003,13 +996,11 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* FERRAMENTA 2: PSIQUIATRIA (PHQ-9 & GAD-7) */}
                 {activeSpecialtyTool === 'psiquiatria' && (
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-6">
                     <h3 className="text-lg font-bold text-primary-blue">Escalas Clínicas de Triagem (PHQ-9 & GAD-7)</h3>
                     <p className="text-xs text-gray-500">Nas últimas 2 semanas, com que frequência o(a) paciente foi incomodado(a) por:</p>
 
-                    {/* PHQ-9 */}
                     <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-black text-primary-blue">PHQ-9 (Rastreio de Depressão)</span>
@@ -1054,7 +1045,6 @@ export default function Dashboard() {
                       )}
                     </div>
 
-                    {/* GAD-7 */}
                     <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-black text-primary-blue">GAD-7 (Rastreio de Ansiedade)</span>
@@ -1094,7 +1084,6 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* BOTÃO DE IA PARA LAUDO PSIQUIÁTRICO */}
                     <div className="pt-2">
                       <button onClick={handleGenerateAIReport} disabled={isGeneratingAI} className="w-full bg-action-mint text-primary-blue font-extrabold py-3.5 rounded-2xl shadow-md hover:bg-[#00c07d] transition-all flex items-center justify-center gap-2">
                         {userPlanTier === 'basico' ? <Lock size={18} /> : <Sparkles size={18} />} 
@@ -1105,7 +1094,6 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* LAUDO GERADO PELA IA */}
                 {generatedReport && userPlanTier === 'pro' && (
                   <div className="bg-white border-2 border-action-mint rounded-3xl p-6 shadow-xl space-y-4">
                     <div className="flex justify-between items-center border-b pb-3">
@@ -1149,7 +1137,6 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* OUTRAS ESPECIALIDADES (VISUALIZAÇÃO) */}
                 {activeSpecialtyTool === 'pediatria' && (
                   <div className="bg-bg-ice p-6 rounded-3xl border border-gray-200 space-y-4">
                     <h3 className="text-lg font-bold text-primary-blue">Ferramentas de Pediatria</h3>
@@ -1231,73 +1218,112 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* ABA PLANOS E ASSINATURA */}
+            {/* ABA PLANOS E ASSINATURA (ATUALIZADA COM AS 2 CATEGORIAS EM 3 OPÇÕES CADA) */}
             {activeTab === 'planos' && (
-              <div className="flex-1 bg-white rounded-3xl p-8 overflow-y-auto text-center space-y-8">
+              <div className="flex-1 bg-white rounded-3xl p-8 overflow-y-auto text-center space-y-10">
                 <div>
                   <h2 className="text-3xl font-black text-primary-blue mb-2">Escolha o plano ideal para a sua prática médica</h2>
-                  <p className="text-gray-500 text-sm">Evolua seu consultório com prescrição inteligente e ferramentas especializadas.</p>
+                  <p className="text-gray-500 text-sm">Evolua seu consultório com prescrição rápida ou desbloqueie ferramentas avançadas com IA.</p>
                 </div>
 
-                {/* PLANO BÁSICO (CLÍNICO GERAL) */}
-                <div className="max-w-4xl mx-auto border-2 border-dashed border-gray-200 p-6 rounded-3xl bg-bg-ice text-left flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div>
-                    <span className="bg-gray-200 text-gray-700 text-[10px] font-black uppercase px-2.5 py-1 rounded-full">Essencial</span>
-                    <h3 className="text-xl font-black text-primary-blue mt-2">Plano Básico (Clínico Geral)</h3>
-                    <p className="text-xs text-gray-500 mt-1">Ideal para médicos generalistas e plantonistas. Inclui prescrição rápida, busca inteligente de medicamentos, receitas prontas e envio por e-mail.</p>
+                {/* CATEGORIA 1: PLANO BÁSICO (CLÍNICO GERAL) */}
+                <div className="space-y-4 text-left max-w-5xl mx-auto">
+                  <div className="flex items-center gap-2 border-b pb-2">
+                    <span className="bg-gray-100 text-primary-blue font-extrabold text-xs px-3 py-1 rounded-lg uppercase tracking-wider">Essencial</span>
+                    <h3 className="font-extrabold text-lg text-primary-blue">Plano Básico (Clínico Geral)</h3>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-black text-primary-blue mb-2">R$ 47,90 <span className="text-xs font-normal text-gray-500">/mês</span></div>
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-BASICO" target="_blank" rel="noopener noreferrer" className="inline-block px-6 py-2.5 rounded-xl border-2 border-primary-blue font-bold text-primary-blue text-xs hover:bg-primary-blue hover:text-white transition-all">Assinar Básico</a>
+
+                  <div className="grid md:grid-cols-3 gap-6">
+                    {/* Básico Mensal */}
+                    <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-primary-blue transition-all">
+                      <div>
+                        <span className="text-gray-500 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-100">Básico Mensal</span>
+                        <h4 className="font-bold text-base text-primary-blue mt-3 mb-1">Mensal</h4>
+                        <div className="text-3xl font-black text-primary-blue mb-4">R$ 47,90</div>
+                        <p className="text-xs text-gray-500 mb-6">Prescrição rápida, busca inteligente, receitas prontas e envio de e-mail ilimitado.</p>
+                      </div>
+                      <a href="https://pay.kiwify.com.br/SEU-LINK-BASICO-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Básico Mensal</a>
+                    </div>
+
+                    {/* Básico Trimestral (Mais Comprado) */}
+                    <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between relative transform md:-translate-y-2 border-2 border-action-mint">
+                      <div className="absolute -top-3.5 right-6 bg-action-mint text-primary-blue font-extrabold text-[10px] uppercase px-3 py-1 rounded-full shadow-md tracking-wider">
+                        Mais Comprado ⭐
+                      </div>
+                      <div>
+                        <span className="bg-action-mint/20 text-action-mint text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Básico Trimestral</span>
+                        <h4 className="font-bold text-base mt-3 mb-1">Trimestral</h4>
+                        <div className="text-3xl font-black text-action-mint mb-4">R$ 119,90</div>
+                        <p className="text-xs text-gray-300 mb-6">Economia inteligente para plantonistas no dia a dia do consultório.</p>
+                      </div>
+                      <a href="https://pay.kiwify.com.br/SEU-LINK-BASICO-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md text-sm">Assinar Básico Trimestral</a>
+                    </div>
+
+                    {/* Básico Anual */}
+                    <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-primary-blue transition-all">
+                      <div>
+                        <span className="text-gray-500 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-100">Básico Anual</span>
+                        <h4 className="font-bold text-base text-primary-blue mt-3 mb-1">Anual</h4>
+                        <div className="text-3xl font-black text-primary-blue mb-4">R$ 347,90</div>
+                        <p className="text-xs text-gray-500 mb-6">Máximo custo-benefício para médicos generalistas com compromisso anual.</p>
+                      </div>
+                      <a href="https://pay.kiwify.com.br/SEU-LINK-BASICO-ANUAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Básico Anual</a>
+                    </div>
                   </div>
                 </div>
 
-                <div className="relative flex py-2 items-center max-w-4xl mx-auto">
+                <div className="relative flex py-2 items-center max-w-5xl mx-auto">
                   <div className="flex-grow border-t border-gray-200"></div>
-                  <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold uppercase tracking-wider">Ou acelere com o Especializado</span>
+                  <span className="flex-shrink mx-4 text-primary-blue text-xs font-bold uppercase tracking-wider">Ou escolha o nível profissional completo</span>
                   <div className="flex-grow border-t border-gray-200"></div>
                 </div>
 
-                {/* PLANOS PRO (ESPECIALISTAS + IA) */}
-                <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto text-left">
-                  
-                  {/* PRO MENSAL */}
-                  <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-action-mint transition-all">
-                    <div>
-                      <span className="bg-primary-blue/10 text-primary-blue text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO MENSAL</span>
-                      <h3 className="font-bold text-lg text-primary-blue mt-3 mb-1">Mensal</h3>
-                      <div className="text-3xl font-black text-primary-blue mb-4">R$ 59,90</div>
-                      <p className="text-xs text-gray-500 mb-6">Acesso total às ferramentas de Ortopedia, Psiquiatria (PHQ-9/GAD-7), Pediatria, Cardiologia e Laudos com IA.</p>
-                    </div>
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Pro Mensal</a>
+                {/* CATEGORIA 2: PLANOS PRO (ESPECIALISTAS + IA) */}
+                <div className="space-y-4 text-left max-w-5xl mx-auto">
+                  <div className="flex items-center gap-2 border-b pb-2">
+                    <span className="bg-action-mint/20 text-primary-blue font-extrabold text-xs px-3 py-1 rounded-lg uppercase tracking-wider">Avançado</span>
+                    <h3 className="font-extrabold text-lg text-primary-blue">Planos PRO (Especialistas & Laudos com IA)</h3>
                   </div>
 
-                  {/* PRO TRIMESTRAL (MAIS COMPRADO) */}
-                  <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between relative transform md:-translate-y-2 border-2 border-action-mint">
-                    <div className="absolute -top-3.5 right-6 bg-action-mint text-primary-blue font-extrabold text-[10px] uppercase px-3 py-1 rounded-full shadow-md tracking-wider">
-                      Mais Comprado ⭐
+                  <div className="grid md:grid-cols-3 gap-6">
+                    {/* Pro Mensal */}
+                    <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-action-mint transition-all">
+                      <div>
+                        <span className="bg-primary-blue/10 text-primary-blue text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO Mensal</span>
+                        <h4 className="font-bold text-base text-primary-blue mt-3 mb-1">Mensal</h4>
+                        <div className="text-3xl font-black text-primary-blue mb-4">R$ 59,90</div>
+                        <p className="text-xs text-gray-500 mb-6">Acesso total às ferramentas de Ortopedia, Psiquiatria, Pediatria e Laudos com IA.</p>
+                      </div>
+                      <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-MENSAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Pro Mensal</a>
                     </div>
-                    <div>
-                      <span className="bg-action-mint/20 text-action-mint text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO TRIMESTRAL</span>
-                      <h3 className="font-bold text-lg mt-3 mb-1">Trimestral</h3>
-                      <div className="text-3xl font-black text-action-mint mb-4">R$ 139,90</div>
-                      <p className="text-xs text-gray-300 mb-6">Economia inteligente para especialistas. Desbloqueio completo de todos os módulos clínicos por 3 meses.</p>
-                    </div>
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md text-sm">Assinar Pro Trimestral</a>
-                  </div>
 
-                  {/* PRO ANUAL */}
-                  <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-action-mint transition-all">
-                    <div>
-                      <span className="bg-yellow-100 text-yellow-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO ANUAL (MELHOR VALOR)</span>
-                      <h3 className="font-bold text-lg text-primary-blue mt-3 mb-1">Anual</h3>
-                      <div className="text-3xl font-black text-primary-blue mb-4">R$ 387,90</div>
-                      <p className="text-xs text-gray-500 mb-6">Máximo desempenho médico com desconto anual garantido em todas as atualizações futuras.</p>
+                    {/* Pro Trimestral (Mais Comprado) */}
+                    <div className="bg-primary-blue text-white p-6 rounded-3xl shadow-xl flex flex-col justify-between relative transform md:-translate-y-2 border-2 border-action-mint">
+                      <div className="absolute -top-3.5 right-6 bg-action-mint text-primary-blue font-extrabold text-[10px] uppercase px-3 py-1 rounded-full shadow-md tracking-wider">
+                        Mais Comprado ⭐
+                      </div>
+                      <div>
+                        <span className="bg-action-mint/20 text-action-mint text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO Trimestral</span>
+                        <h4 className="font-bold text-base mt-3 mb-1">Trimestral</h4>
+                        <div className="text-3xl font-black text-action-mint mb-4">R$ 139,90</div>
+                        <p className="text-xs text-gray-300 mb-6">Economia inteligente para especialistas com desbloqueio completo por 3 meses.</p>
+                      </div>
+                      <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-TRIMESTRAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl bg-action-mint font-bold text-primary-blue hover:bg-[#00c07d] transition-all shadow-md text-sm">Assinar Pro Trimestral</a>
                     </div>
-                    <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-ANUAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Pro Anual</a>
-                  </div>
 
+                    {/* Pro Anual */}
+                    <div className="border border-gray-200 p-6 rounded-3xl flex flex-col justify-between hover:border-action-mint transition-all">
+                      <div>
+                        <span className="bg-yellow-100 text-yellow-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PRO Anual (Melhor Valor)</span>
+                        <h4 className="font-bold text-base text-primary-blue mt-3 mb-1">Anual</h4>
+                        <div className="text-3xl font-black text-primary-blue mb-4">R$ 387,90</div>
+                        <p className="text-xs text-gray-500 mb-6">Máximo desempenho médico com desconto anual garantido em todas as atualizações.</p>
+                      </div>
+                      <a href="https://pay.kiwify.com.br/SEU-LINK-PRO-ANUAL" target="_blank" rel="noopener noreferrer" className="block text-center w-full py-3 rounded-xl border-2 border-primary-blue font-bold text-primary-blue hover:bg-primary-blue hover:text-white transition-all text-sm">Assinar Pro Anual</a>
+                    </div>
+                  </div>
                 </div>
+
               </div>
             )}
 
@@ -1317,7 +1343,7 @@ export default function Dashboard() {
                      <input type="text" value={docName} onChange={(e) => setDocName(e.target.value.toUpperCase())} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none font-bold uppercase" />
                    </div>
                    <div className="grid grid-cols-2 gap-4">
-                     <div><label className="block text-sm font-bold text-gray-600 mb-2">CRM</label><input type="text" value={docCRM} onChange={(e) => setDocCRM(e.target.value)} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none" /><div></div></div>
+                     <div><label className="block text-sm font-bold text-gray-600 mb-2">CRM</label><input type="text" value={docCRM} onChange={(e) => setDocCRM(e.target.value)} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none" /></div>
                      <div><label className="block text-sm font-bold text-gray-600 mb-2">UF</label><select value={docUF} onChange={(e) => setDocUF(e.target.value)} className="w-full bg-bg-ice border rounded-xl px-4 py-3 outline-none">{['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => <option key={uf} value={uf}>{uf}</option>)}</select></div>
                    </div>
                    <div>
