@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert } from 'lucide-react'
+import { Search, Clock, FileText, Settings, Zap, Printer, X, Mail, CheckCircle, Save, CreditCard, ShieldAlert, Star, Bookmark, Trash2, LogOut, Camera, User } from 'lucide-react'
 import { Logo } from '../../components/Logo'
 import { createClient } from '@supabase/supabase-js'
 
@@ -70,23 +70,30 @@ export default function Dashboard() {
   const [docCRM, setDocCRM] = useState('1252648')
   const [docUF, setDocUF] = useState('RJ')
   const [docSpecialty, setDocSpecialty] = useState('MÉDICO CLÍNICO GERAL')
+  const [docAvatar, setDocAvatar] = useState('') // Estado da foto de perfil leve
   const [isSaved, setIsSaved] = useState(false)
 
-  // Estados para o Envio de E-mail
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [patientEmail, setPatientEmail] = useState('')
   const [isSending, setIsSending] = useState(false)
+
+  const [favoriteProtocols, setFavoriteProtocols] = useState<any[]>([])
+  const [showSaveFavoriteModal, setShowSaveFavoriteModal] = useState(false)
+  const [favoriteName, setFavoriteName] = useState('')
+  const [isSavingFavorite, setIsSavingFavorite] = useState(false)
   
   useEffect(() => {
     const savedName = localStorage.getItem('agildoc_name')
     const savedCRM = localStorage.getItem('agildoc_crm')
     const savedUF = localStorage.getItem('agildoc_uf')
     const savedSpecialty = localStorage.getItem('agildoc_specialty')
+    const savedAvatar = localStorage.getItem('agildoc_avatar')
     
     if (savedName) setDocName(savedName)
     if (savedCRM) setDocCRM(savedCRM)
     if (savedUF) setDocUF(savedUF)
     if (savedSpecialty) setDocSpecialty(savedSpecialty)
+    if (savedAvatar) setDocAvatar(savedAvatar)
   }, [])
   
   useEffect(() => {
@@ -118,6 +125,10 @@ export default function Dashboard() {
           } else {
              setTimeLeftText('Configurando perfil...')
           }
+
+          const { data: favs } = await supabase.from('favorite_prescriptions').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+          if (favs) setFavoriteProtocols(favs)
+
         } else {
           setTimeLeftText('Modo de Visualização (Não Autenticado)')
         }
@@ -141,14 +152,62 @@ export default function Dashboard() {
     }
   }, [])
 
+  // Função para comprimir e redimensionar a imagem para menos de 20KB antes de salvar
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = (event) => {
+      const img = new Image()
+      img.src = event.target?.result as string
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const MAX_WIDTH = 150
+        const MAX_HEIGHT = 150
+        let width = img.width
+        let height = img.height
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width
+            width = MAX_WIDTH
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height
+            height = MAX_HEIGHT
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx?.drawImage(img, 0, 0, width, height)
+
+        // Converte para JPEG com compressão de 70% para garantir arquivo extremamente leve (< 15kb)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+        setDocAvatar(dataUrl)
+      }
+    }
+  }
+
   const handleSaveProfile = () => {
     localStorage.setItem('agildoc_name', docName)
     localStorage.setItem('agildoc_crm', docCRM)
     localStorage.setItem('agildoc_uf', docUF)
     localStorage.setItem('agildoc_specialty', docSpecialty)
+    if (docAvatar) localStorage.setItem('agildoc_avatar', docAvatar)
     
     setIsSaved(true)
     setTimeout(() => setIsSaved(false), 3000)
+  }
+
+  // Função de Logout (Sair)
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/' // Redireciona para a página inicial/login
   }
 
   const ALL_MEDICINES = [...MEDICINES_DB, ...dbMedicines]
@@ -161,10 +220,15 @@ export default function Dashboard() {
     const newItems = receita.items.map((item: any, idx: number) => ({
       id: Date.now() + idx, name: item.name, dose: item.dose, freq: item.freq
     }))
-    const atestado = {
-      id: Date.now() + 999, name: 'Atestado Médico', dose: 'DOC', freq: `Concedo ${receita.dias} dias de afastamento (CID: ${receita.cid})`
+    
+    if (receita.dias) {
+      const atestado = {
+        id: Date.now() + 999, name: 'Atestado Médico', dose: 'DOC', freq: `Concedo ${receita.dias} dias de afastamento (CID: ${receita.cid})`
+      }
+      setPrescriptions([...prescriptions, ...newItems, atestado])
+    } else {
+      setPrescriptions([...prescriptions, ...newItems])
     }
-    setPrescriptions([...prescriptions, ...newItems, atestado])
   }
 
   const handleClear = () => {
@@ -175,13 +239,8 @@ export default function Dashboard() {
 
   const handlePrint = () => window.print()
 
-  // Função para disparar o e-mail via rota de API do Resend
   const handleSendEmail = async () => {
-    if (!patientEmail) {
-      alert('Por favor, informe o e-mail do paciente.')
-      return
-    }
-    
+    if (!patientEmail) return alert('Por favor, informe o e-mail do paciente.')
     setIsSending(true)
     try {
       const res = await fetch('/api/send-email', {
@@ -194,19 +253,65 @@ export default function Dashboard() {
           docName: docName
         })
       })
-
       if (res.ok) {
         alert('E-mail enviado com sucesso!')
         setShowEmailModal(false)
         setPatientEmail('')
       } else {
-        alert('Erro ao enviar e-mail. Verifique se o serviço está configurado corretamente.')
+        alert('Erro ao enviar e-mail.')
       }
     } catch (error) {
-      console.error(error)
       alert('Erro de conexão ao tentar enviar o e-mail.')
     } finally {
       setIsSending(false)
+    }
+  }
+
+  const handleSaveFavorite = async () => {
+    if (!favoriteName) return alert('Dê um nome para a sua receita.')
+    if (prescriptions.length === 0) return alert('Adicione pelo menos um item à receita.')
+    
+    setIsSavingFavorite(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Você precisa estar logado para salvar favoritos.')
+        setIsSavingFavorite(false)
+        return
+      }
+
+      const newFavorite = {
+        user_id: user.id,
+        name: favoriteName,
+        specialty: docSpecialty,
+        items: prescriptions
+      }
+
+      const { data, error } = await supabase.from('favorite_prescriptions').insert([newFavorite]).select()
+      
+      if (error) throw error
+      if (data) {
+        setFavoriteProtocols([data[0], ...favoriteProtocols])
+        setShowSaveFavoriteModal(false)
+        setFavoriteName('')
+        alert('Protocolo salvo com sucesso!')
+      }
+    } catch (error) {
+      alert('Erro ao salvar o protocolo.')
+    } finally {
+      setIsSavingFavorite(false)
+    }
+  }
+
+  const handleDeleteFavorite = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este protocolo?')) return
+
+    try {
+      const { error } = await supabase.from('favorite_prescriptions').delete().eq('id', id)
+      if (error) throw error
+      setFavoriteProtocols(favoriteProtocols.filter(f => f.id !== id))
+    } catch (error) {
+      alert('Erro ao excluir.')
     }
   }
 
@@ -267,7 +372,6 @@ export default function Dashboard() {
 
       <div className="print:hidden h-screen flex flex-col bg-bg-ice overflow-hidden font-sans text-primary-blue relative">
         
-        {/* Modal de Envio de E-mail */}
         {showEmailModal && (
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
@@ -276,7 +380,6 @@ export default function Dashboard() {
               </div>
               <h3 className="text-2xl font-black text-primary-blue mb-2">Enviar Prescrição</h3>
               <p className="text-sm text-gray-500 mb-6">Insira o e-mail do paciente para enviar a cópia digital de forma instantânea.</p>
-              
               <input
                 type="email"
                 placeholder="E-mail do paciente..."
@@ -284,13 +387,35 @@ export default function Dashboard() {
                 onChange={(e) => setPatientEmail(e.target.value)}
                 className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint mb-6 font-medium text-primary-blue"
               />
-              
               <div className="flex justify-end gap-3">
-                <button onClick={() => setShowEmailModal(false)} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 font-bold transition-colors">
-                  Cancelar
-                </button>
+                <button onClick={() => setShowEmailModal(false)} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 font-bold transition-colors">Cancelar</button>
                 <button onClick={handleSendEmail} disabled={isSending || prescriptions.length === 0} className="px-6 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 hover:bg-[#111e38] transition-colors disabled:opacity-50">
                   {isSending ? 'Enviando...' : 'Enviar Agora'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showSaveFavoriteModal && (
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+              <div className="flex items-center justify-center w-12 h-12 bg-yellow-50 rounded-full mb-4">
+                <Star className="text-yellow-500" size={24} />
+              </div>
+              <h3 className="text-2xl font-black text-primary-blue mb-2">Salvar Protocolo</h3>
+              <p className="text-sm text-gray-500 mb-6">Dê um nome para esta prescrição. Ela ficará salva na aba "Meus Protocolos".</p>
+              <input
+                type="text"
+                placeholder="Ex: Otite Infantil, Hipertensão Leve..."
+                value={favoriteName}
+                onChange={(e) => setFavoriteName(e.target.value)}
+                className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint mb-6 font-bold text-primary-blue uppercase"
+              />
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowSaveFavoriteModal(false)} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 font-bold transition-colors">Cancelar</button>
+                <button onClick={handleSaveFavorite} disabled={isSavingFavorite || !favoriteName} className="px-6 py-2.5 rounded-xl bg-yellow-400 text-primary-blue font-bold flex items-center gap-2 hover:bg-yellow-500 transition-colors disabled:opacity-50">
+                  {isSavingFavorite ? 'Salvando...' : 'Salvar Favorito'}
                 </button>
               </div>
             </div>
@@ -307,15 +432,28 @@ export default function Dashboard() {
           </button>
         </div>
 
+        {/* Barra Superior com Foto do Perfil e Botão de Logout */}
         <div className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-30">
           <Logo className="h-8" />
           <div className="flex items-center gap-4">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary-blue to-[#2A416F] flex items-center justify-center text-white font-bold cursor-pointer">TF</div>
+            <div className="flex items-center gap-3">
+              {docAvatar ? (
+                <img src={docAvatar} alt="Perfil" className="w-9 h-9 rounded-full object-cover border-2 border-primary-blue shadow-sm" />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary-blue to-[#2A416F] flex items-center justify-center text-white font-bold">TF</div>
+              )}
+              <span className="hidden md:inline font-bold text-sm text-primary-blue">{docName.split(' ')[0]}</span>
+            </div>
+            
+            {/* BOTÃO DE SAIR / LOGOUT */}
+            <button onClick={handleLogout} className="flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-red-100 transition-colors" title="Sair da Conta">
+              <LogOut size={16} /> <span className="hidden md:inline">Sair</span>
+            </button>
           </div>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          <aside className="w-20 md:w-64 bg-white border-r border-gray-100 flex flex-col shadow-soft z-20">
+          <aside className="w-20 md:w-64 bg-white border-r border-gray-100 flex flex-col shadow-soft z-20 overflow-y-auto">
             <nav className="flex-1 py-6 px-3">
               <ul className="space-y-2">
                 <li onClick={() => setActiveTab('prescricao')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'prescricao' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
@@ -323,6 +461,9 @@ export default function Dashboard() {
                 </li>
                 <li onClick={() => setActiveTab('receitas')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'receitas' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <Zap size={20} className={activeTab === 'receitas' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Receitas Prontas</span>
+                </li>
+                <li onClick={() => setActiveTab('meus-protocolos')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'meus-protocolos' ? 'bg-yellow-50 text-yellow-600 shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <Bookmark size={20} className={activeTab === 'meus-protocolos' ? 'text-yellow-600' : ''} /> <span className="hidden md:block font-bold">Meus Protocolos</span>
                 </li>
                 <li onClick={() => setActiveTab('planos')} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeTab === 'planos' ? 'bg-bg-ice text-action-mint shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <CreditCard size={20} className={activeTab === 'planos' ? 'text-action-mint' : ''} /> <span className="hidden md:block font-bold">Planos e Assinatura</span>
@@ -352,8 +493,9 @@ export default function Dashboard() {
                 <h1 className="text-2xl font-bold tracking-tight">
                   {activeTab === 'prescricao' && 'Pronto Atendimento'}
                   {activeTab === 'receitas' && 'Protocolos e Receitas Prontas'}
+                  {activeTab === 'meus-protocolos' && 'Meus Protocolos (Favoritos)'}
                   {activeTab === 'planos' && 'Renovação e Planos de Assinatura'}
-                  {activeTab === 'configuracoes' && 'Configuração do Carimbo'}
+                  {activeTab === 'configuracoes' && 'Configuração do Perfil e Carimbo'}
                 </h1>
               </div>
             </header>
@@ -431,18 +573,65 @@ export default function Dashboard() {
                        </ul>
                      )}
                   </div>
-                  <div className="p-4 border-t flex justify-end gap-3 bg-gray-50 shrink-0">
-                    <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold transition-colors">
-                      Limpar
-                    </button>
-                    <button onClick={() => setShowEmailModal(true)} className="px-5 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 shadow-md hover:bg-[#111e38] transition-colors">
-                      <Mail size={16} /> Enviar por E-mail
-                    </button>
-                    <button onClick={handlePrint} className="px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d] transition-colors">
-                      <Printer size={16} /> Imprimir
-                    </button>
+                  <div className="p-4 border-t flex items-center justify-between bg-gray-50 shrink-0">
+                    <div>
+                      <button onClick={() => setShowSaveFavoriteModal(true)} disabled={prescriptions.length === 0} className="px-4 py-2.5 rounded-xl text-yellow-600 hover:bg-yellow-100 font-bold flex items-center gap-2 transition-colors disabled:opacity-50">
+                        <Star size={18} /> <span className="hidden md:inline">Salvar Favorito</span>
+                      </button>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <button onClick={handleClear} className="px-5 py-2.5 rounded-xl text-gray-500 hover:bg-gray-200 font-bold transition-colors">Limpar</button>
+                      <button onClick={() => setShowEmailModal(true)} className="px-4 md:px-5 py-2.5 rounded-xl bg-primary-blue text-white font-bold flex items-center gap-2 shadow-md hover:bg-[#111e38] transition-colors">
+                        <Mail size={16} /> <span className="hidden md:inline">Enviar</span>
+                      </button>
+                      <button onClick={handlePrint} className="px-4 md:px-6 py-2.5 rounded-xl bg-action-mint text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#00c07d] transition-colors">
+                        <Printer size={16} /> Imprimir
+                      </button>
+                    </div>
                   </div>
                 </section>
+              </div>
+            )}
+
+            {activeTab === 'meus-protocolos' && (
+              <div className="flex-1 bg-white rounded-3xl p-6 overflow-y-auto">
+                {favoriteProtocols.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                    <Bookmark size={64} className="mb-4 text-yellow-200" />
+                    <h3 className="text-xl font-bold text-primary-blue mb-2">Nenhum protocolo salvo</h3>
+                    <p className="max-w-md text-center">Quando você montar uma receita na aba de Prescrição, clique em "Salvar Favorito" para ela aparecer aqui.</p>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {favoriteProtocols.map(fav => (
+                      <div key={fav.id} className="border border-gray-200 rounded-2xl p-5 hover:border-yellow-400 transition-colors relative group">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="font-bold text-lg text-primary-blue uppercase">{fav.name}</h3>
+                            <p className="text-sm text-yellow-600 font-bold bg-yellow-50 inline-block px-2 py-0.5 rounded mt-1">{fav.specialty}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleDeleteFavorite(fav.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Excluir">
+                              <Trash2 size={18} />
+                            </button>
+                            <button onClick={() => {applyReceita({items: fav.items}); setActiveTab('prescricao')}} className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-[#111e38]">
+                              Aplicar
+                            </button>
+                          </div>
+                        </div>
+                        <ul className="space-y-2 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                          {fav.items.map((i: any, idx: number) => (
+                            <li key={idx} className="text-sm text-gray-700 flex justify-between border-b border-gray-200 pb-1 last:border-0">
+                              <span className="font-semibold">{i.name}</span> 
+                              <span className="text-gray-500 text-xs text-right max-w-[50%]">{i.freq}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -505,10 +694,31 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* ABA DE CONFIGURAÇÕES COM UPLOAD DE FOTO LEVE E CARIMBO */}
             {activeTab === 'configuracoes' && (
-              <div className="flex-1 bg-white rounded-3xl p-8 max-w-2xl shadow-soft">
-                 <h3 className="text-xl font-bold text-primary-blue mb-6 border-b pb-4">Dados do Carimbo (Impressão)</h3>
+              <div className="flex-1 bg-white rounded-3xl p-8 max-w-2xl shadow-soft overflow-y-auto">
+                 <h3 className="text-xl font-bold text-primary-blue mb-6 border-b pb-4">Personalização do Perfil e Carimbo</h3>
+                 
                  <div className="space-y-6">
+                   {/* Seção da Foto de Perfil */}
+                   <div>
+                     <label className="block text-sm font-bold text-gray-600 mb-2">Foto do Perfil (Leve e Compactada)</label>
+                     <div className="flex items-center gap-4">
+                       {docAvatar ? (
+                         <img src={docAvatar} alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-primary-blue shadow-md" />
+                       ) : (
+                         <div className="w-16 h-16 rounded-full bg-bg-ice border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 font-bold">Sem Foto</div>
+                       )}
+                       <div>
+                         <label className="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold cursor-pointer hover:bg-[#111e38] transition-colors inline-flex items-center gap-2">
+                           <Camera size={16} /> Escolher Foto
+                           <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                         </label>
+                         <p className="text-xs text-gray-400 mt-1">A imagem é compactada automaticamente para otimizar o sistema.</p>
+                       </div>
+                     </div>
+                   </div>
+
                    <div>
                      <label className="block text-sm font-bold text-gray-600 mb-2">Nome do Médico (Sairá no rodapé da receita)</label>
                      <input type="text" value={docName} onChange={(e) => setDocName(e.target.value.toUpperCase())} className="w-full bg-bg-ice border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-action-mint font-bold uppercase" />
@@ -550,7 +760,6 @@ export default function Dashboard() {
                        <option value="ENDOCRINOLOGISTA" />
                        <option value="CIRURGIÃO GERAL" />
                      </datalist>
-                     <p className="text-xs text-gray-400 mt-2">Selecione uma especialidade da lista ou digite livremente caso não encontre a sua.</p>
                    </div>
 
                    <div className="pt-6 border-t border-gray-100 flex items-center gap-4">
