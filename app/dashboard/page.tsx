@@ -1053,15 +1053,17 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* LAUDO GERADO PELA IA COM OPÇÃO DE IMPRESSÃO */}
+                {/* LAUDO GERADO PELA IA COM OPÇÃO DE EDIÇÃO E IMPRESSÃO */}
                 {generatedReport && (
                   <div className="bg-white border-2 border-action-mint rounded-3xl p-6 shadow-xl space-y-4">
                     <div className="flex justify-between items-center border-b pb-3">
-                      <h4 className="font-extrabold text-primary-blue flex items-center gap-2"><Sparkles className="text-action-mint" size={20} /> Relatório / Laudo Gerado por IA</h4>
+                      <h4 className="font-extrabold text-primary-blue flex items-center gap-2">
+                        <Sparkles className="text-action-mint" size={20} /> Relatório / Laudo Gerado por IA (Editável)
+                      </h4>
                       <button onClick={() => setGeneratedReport('')} className="text-gray-400 hover:text-red-600"><X size={18}/></button>
                     </div>
                     
-                    {/* Visualização de Impressão do Laudo */}
+                    {/* Visualização de Impressão / Edição do Laudo */}
                     <div className="bg-bg-ice p-6 rounded-2xl border border-gray-200 space-y-4">
                       <div className="flex justify-between items-start border-b border-primary-blue/20 pb-4">
                         <Logo className="h-6" />
@@ -1073,7 +1075,15 @@ export default function Dashboard() {
                       <div className="text-xs text-primary-blue font-medium mb-2">
                         <span>Paciente: <strong className="uppercase">{patientName || 'NÃO INFORMADO'}</strong></span>
                       </div>
-                      <pre className="whitespace-pre-wrap font-sans text-xs text-gray-800 bg-white p-4 rounded-xl border leading-relaxed">{generatedReport}</pre>
+                      
+                      {/* CAIXA DE TEXTO EDITÁVEL LIVREMENTE PELO ESPECIALISTA */}
+                      <textarea
+                        value={generatedReport}
+                        onChange={(e) => setGeneratedReport(e.target.value)}
+                        rows={10}
+                        className="w-full font-sans text-xs text-gray-800 bg-white p-4 rounded-xl border border-gray-300 focus:border-action-mint outline-none leading-relaxed resize-y shadow-inner"
+                        placeholder="Edite o laudo médico aqui..."
+                      />
                       
                       <div className="pt-8 mt-8 border-t border-gray-300 flex flex-col items-center justify-center text-primary-blue">
                         <div className="w-48 border-b border-primary-blue mb-1"></div>
