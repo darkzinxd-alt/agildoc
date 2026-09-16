@@ -60,7 +60,6 @@ const RECEITAS_DB = [
   }
 ]
 
-// Tabela de Interações Medicamentosas (Item 3)
 const KNOWN_INTERACTIONS = [
   { drugA: 'Diclofenaco', drugB: 'Aspirina', msg: 'Risco aumentado de sangramento gastrintestinal e toxicidade renal.' },
   { drugA: 'Ceftriaxona', drugB: 'Soro Fisiológico com Cálcio', msg: 'Risco de precipitação fatal de sais de cálcio.' },
@@ -76,12 +75,14 @@ export default function Dashboard() {
   const [patientName, setPatientName] = useState('')
   const [prescriptionDate, setPrescriptionDate] = useState('')
   
-  // Novos estados para Filtros em Camadas e Segurança (Itens 1, 2 e 3)
+  // Estados para Filtros, Segurança, Escala de Dor e Mapa Corporal
   const [selectedSpecialtyFilter, setSelectedSpecialtyFilter] = useState('todas')
   const [selectedClassFilter, setSelectedClassFilter] = useState('todas')
   const [selectedTarjaFilter, setSelectedTarjaFilter] = useState('todas')
-  const [patientAllergies, setPatientAllergies] = useState<string[]>(['Dipirona']) // Exemplo de teste
+  const [patientAllergies, setPatientAllergies] = useState<string[]>(['Dipirona'])
   const [drugInteractionsAlerts, setDrugInteractionsAlerts] = useState<string[]>([])
+  const [painLevel, setPainLevel] = useState<number | null>(null)
+  const [selectedBodyPart, setSelectedBodyPart] = useState<string>('')
 
   const [subscriptionStatus, setSubscriptionStatus] = useState('trial')
   const [timeLeftText, setTimeLeftText] = useState('Carregando...')
@@ -130,7 +131,6 @@ export default function Dashboard() {
     }
   }, [])
   
-  // Carrega os dados reais do usuário logado via Supabase Auth
   useEffect(() => {
     async function loadUserData() {
       try {
@@ -206,7 +206,6 @@ export default function Dashboard() {
     }
   }, [])
 
-  // Função de Busca Tolerante a Erros / Fuzzy Match (Item 1)
   const fuzzyMatch = (text: string, query: string) => {
     if (!query) return true
     const cleanText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -214,7 +213,6 @@ export default function Dashboard() {
     return cleanText.includes(cleanQuery)
   }
 
-  // Verificação de Alergia e Interação Medicamentosa ao Adicionar (Itens 2 e 3)
   const handleAddMedicineWithChecks = (med: any, freq: string) => {
     const isAllergic = patientAllergies.some(allergy => 
       med.n.toLowerCase().includes(allergy.toLowerCase()) || 
@@ -333,6 +331,8 @@ export default function Dashboard() {
     setPatientName('')
     setPrescriptionDate('')
     setDrugInteractionsAlerts([])
+    setPainLevel(null)
+    setSelectedBodyPart('')
   }
 
   const handlePrint = () => window.print()
@@ -601,7 +601,7 @@ export default function Dashboard() {
             {activeTab === 'prescricao' && (
               <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
                 
-                {/* LADO ESQUERDO: FILTROS EM CAMADAS E BUSCA DE MEDICAMENTOS (Itens 1 e 2) */}
+                {/* LADO ESQUERDO: FILTROS EM CAMADAS E BUSCA DE MEDICAMENTOS */}
                 <section className="flex-1 bg-white rounded-3xl shadow-soft flex flex-col overflow-hidden p-4">
                   <div className="space-y-3 mb-4 border-b pb-4">
                     <div className="relative">
@@ -651,7 +651,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Alerta de Interação Medicamentosa (Item 3) */}
+                  {/* Alerta de Interação Medicamentosa */}
                   {drugInteractionsAlerts.length > 0 && (
                     <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-3 rounded-r-xl text-xs text-red-700">
                       <p className="font-bold mb-1">⚠️ Alerta de Interação Medicamentosa:</p>
@@ -680,7 +680,7 @@ export default function Dashboard() {
                           {med.f.map((freq: string, i: number) => (
                             <button 
                               key={i} 
-                              onClick={() => handleAddMedicineWithChecks(med, freq)} 
+                              onClick={() => addMedicineWithChecks(med, freq)} 
                               className="bg-action-mint/10 text-action-mint px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-action-mint hover:text-white transition-colors"
                             >
                               + {freq}
@@ -692,7 +692,7 @@ export default function Dashboard() {
                   </div>
                 </section>
                 
-                {/* LADO DIREITO: PACIENTE, PRONTUÁRIO SOAP DINÂMICO E RECEITA (Itens 2 e 4) */}
+                {/* LADO DIREITO: PACIENTE, PRONTUÁRIO SOAP, EVA, MAPA CORPORAL E RECEITA */}
                 <section className="flex-[1.2] bg-white rounded-3xl shadow-xl flex flex-col relative overflow-hidden">
                   
                   <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0 space-y-4">
@@ -719,14 +719,13 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* PRONTUÁRIO DINÂMICO SOAP BASEADO NA ESPECIALIDADE (Item 4) */}
+                    {/* PRONTUÁRIO DINÂMICO SOAP + ESCALA DE DOR + MAPA CORPORAL */}
                     <div className="bg-bg-ice p-4 rounded-2xl border border-gray-200 space-y-3">
                       <p className="text-xs font-black text-primary-blue uppercase tracking-wide">Prontuário SOAP Adaptado — {docSpecialty || 'CLÍNICO GERAL'}</p>
                       
                       <div className="grid grid-cols-2 gap-2">
                         <input type="text" placeholder="S — Queixa principal / Subjetivo" className="bg-white border rounded-xl p-2 text-xs outline-none" />
                         
-                        {/* Objetivo adaptado por especialidade */}
                         {docSpecialty.toLowerCase().includes('pediatra') ? (
                           <input type="text" placeholder="O — Peso (kg) / Altura / PC" className="bg-white border rounded-xl p-2 text-xs outline-none" />
                         ) : docSpecialty.toLowerCase().includes('cardio') ? (
@@ -736,6 +735,70 @@ export default function Dashboard() {
                         ) : (
                           <input type="text" placeholder="O — Sinais Vitais / Exame Físico" className="bg-white border rounded-xl p-2 text-xs outline-none" />
                         )}
+                      </div>
+
+                      {/* ESCALA DE DOR (EVA: 0 a 10) */}
+                      <div className="bg-white p-3 rounded-xl border border-gray-100">
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="text-xs font-bold text-gray-600">Escala Visual Analógica de Dor (EVA)</label>
+                          <span className={`text-xs font-black px-2 py-0.5 rounded-full ${
+                            painLevel === null ? 'bg-gray-100 text-gray-500' :
+                            painLevel === 0 ? 'bg-green-100 text-green-700' :
+                            painLevel <= 3 ? 'bg-yellow-100 text-yellow-700' :
+                            painLevel <= 7 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {painLevel !== null ? `Nível ${painLevel} / 10` : 'Não avaliada'}
+                          </span>
+                        </div>
+                        <div className="flex gap-1 justify-between">
+                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              onClick={() => setPainLevel(num)}
+                              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                                painLevel === num 
+                                  ? 'bg-primary-blue text-white shadow-md scale-105' 
+                                  : 'bg-bg-ice text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              {num}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex justify-between text-[10px] text-gray-400 mt-1 px-1">
+                          <span>0 (Sem dor)</span>
+                          <span>5 (Moderada)</span>
+                          <span>10 (Insuportável)</span>
+                        </div>
+                      </div>
+
+                      {/* MAPA CORPORAL CLICÁVEL */}
+                      <div className="bg-white p-3 rounded-xl border border-gray-100">
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="text-xs font-bold text-gray-600">Mapa Corporal de Lesão / Dor</label>
+                          <span className="text-xs font-bold text-action-mint bg-action-mint/10 px-2 py-0.5 rounded">
+                            {selectedBodyPart ? `Região: ${selectedBodyPart}` : 'Nenhuma região selecionada'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {['Cabeça / Face', 'Coluna Cervical', 'Ombro Direito', 'Ombro Esquerdo', 
+                            'Coluna Lombar', 'Membro Superior D.', 'Membro Superior E.', 'Quadril / Bacia',
+                            'Joelho Direito', 'Joelho Esquerdo', 'Tornozelo / Pé D.', 'Tornozelo / Pé E.'].map((part) => (
+                            <button
+                              key={part}
+                              type="button"
+                              onClick={() => setSelectedBodyPart(part)}
+                              className={`p-2 text-xs font-bold rounded-xl border text-center transition-all ${
+                                selectedBodyPart === part
+                                  ? 'bg-action-mint text-primary-blue border-action-mint shadow-sm'
+                                  : 'bg-bg-ice border-gray-200 text-gray-600 hover:border-gray-300'
+                              }`}
+                            >
+                              {part}
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
